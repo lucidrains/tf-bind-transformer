@@ -1,0 +1,1 @@
+from tf_bind_transformer.tf_bind_transformer import Model
