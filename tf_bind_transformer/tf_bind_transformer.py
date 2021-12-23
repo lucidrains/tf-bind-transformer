@@ -65,6 +65,7 @@ class Model(nn.Module):
         self.aa_seq_embed_to_latent_w = nn.Parameter(torch.randn(aa_embed_dim, inner_latent_dim))
         self.aa_seq_embed_to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
 
+        self.to_logits_w = nn.Parameter(torch.randn(latent_heads, latent_heads))
         self.contextual_projection = nn.Linear(contextual_embed_dim, latent_heads * latent_heads)
 
         self.to_pred = nn.Sequential(
@@ -115,12 +116,16 @@ class Model(nn.Module):
 
         # derive contextual projection
 
-        hyper_weights = self.contextual_projection(contextual_embed)
-        hyper_weights = rearrange(hyper_weights, 'b (i o) -> b i o', i = int(math.sqrt(hyper_weights.shape[-1])))
+        gating = self.contextual_projection(contextual_embed).sigmoid()
+        gating = rearrange(gating, 'b (i o) -> b i o', i = int(math.sqrt(gating.shape[-1])))
 
         # project interactions with hyper weights
 
-        logits = einsum('b n d, b d e -> b n e', interactions, hyper_weights)
+        to_logits_w = rearrange(self.to_logits_w, 'i o -> 1 i o') * gating
+        logits = einsum('b n d, b d e -> b n e', interactions, to_logits_w)
+
+        # to *-seq prediction
+
         pred = self.to_pred(logits)
 
         if exists(target):
