@@ -74,6 +74,7 @@ print(corr_coef.shape)
 - [ ] allow for fine-tuning layernorms of Enformer easily
 - [ ] normalization of interactions between genetic and amino acid sequence
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
+- [ ] offer different ways of conditioning both paths with contextual embedding (hypergrid, ISAB cross attention, etc)
 
 ## Appreciation
 
