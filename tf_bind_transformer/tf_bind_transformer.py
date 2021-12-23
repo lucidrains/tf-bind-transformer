@@ -6,6 +6,7 @@ from torch import nn, einsum
 from einops import rearrange, reduce
 from einops.layers.torch import Rearrange
 
+from contextlib import contextmanager
 from enformer_pytorch import Enformer
 
 # helper functions
@@ -21,6 +22,10 @@ def log(t, eps = 1e-20):
 
 def l2norm(t):
     return F.normalize(t, dim = -1)
+
+@contextmanager
+def null_context():
+    yield
 
 # losses and metrics
 
@@ -82,10 +87,15 @@ class Model(nn.Module):
         contextual_embed,
         aa_mask = None,
         target = None,
-        return_corr_coef = False
+        return_corr_coef = False,
+        finetune_enformer = False
     ):
         latent_heads = self.latent_heads
-        _, seq_embed = self.enformer(seq, return_embeddings = True)
+
+        enformer_context = torch.no_grad if not finetune_enformer else null_context
+
+        with enformer_context():
+            _, seq_embed = self.enformer(seq, return_embeddings = True)
 
         # project both embeddings into shared latent space
 
