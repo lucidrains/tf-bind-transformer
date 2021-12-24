@@ -20,6 +20,7 @@ setup(
   install_requires=[
     'einops>=0.3',
     'enformer-pytorch',
+    'fair-esm',
     'torch>=1.6'
   ],
   classifiers=[

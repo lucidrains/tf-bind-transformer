@@ -9,6 +9,8 @@ from einops.layers.torch import Rearrange
 from contextlib import contextmanager
 from enformer_pytorch import Enformer
 
+from tf_bind_transformer.utils import init_esm, get_esm_repr
+
 # helper functions
 
 def exists(val):
@@ -54,12 +56,25 @@ class Model(nn.Module):
         enformer_dim = 1536,
         latent_dim = 64,
         latent_heads = 32,
-        aa_embed_dim = 512,
+        aa_embed_dim = None,
         contextual_embed_dim = 256,
+        use_esm_embeds = False
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
         self.enformer = enformer
+
+        # protein embedding related variables
+
+        self.use_esm_embeds = use_esm_embeds
+
+        if use_esm_embeds:
+            self.esm = init_esm()
+            aa_embed_dim = 1280
+        else:
+            assert exists(aa_embed_dim), 'AA embedding dimensions must be set if not using ESM'
+
+        # latents
 
         self.latent_heads = latent_heads
         inner_latent_dim = latent_heads * latent_dim
@@ -83,7 +98,8 @@ class Model(nn.Module):
         self,
         seq,
         *,
-        aa_embed,
+        aa = None,
+        aa_embed = None,
         contextual_embed,
         aa_mask = None,
         target = None,
@@ -96,6 +112,14 @@ class Model(nn.Module):
 
         with enformer_context():
             _, seq_embed = self.enformer(seq, return_embeddings = True)
+
+        # protein related embeddings
+
+        if self.use_esm_embeds:
+            assert exists(aa), 'aa must be passed in as tensor of integers from 0 - 20 (20 being padding)'
+            aa_embed, aa_mask = get_esm_repr(aa, *self.esm, return_padded_with_masks = True)
+        else:
+            assert exists(aa_embed), 'protein embeddings must be given as aa_embed'
 
         # project both embeddings into shared latent space
 

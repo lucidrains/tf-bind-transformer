@@ -4,8 +4,10 @@ A repository with exploration into using transformers to predict DNA ↔ transcr
 
 ## Install
 
+Run the following at the project root to download dependencies
+
 ```bash
-$ pip install tf-bind-transformer
+$ python setup.py install --user
 ```
 
 ## Usage
@@ -68,9 +70,48 @@ corr_coef = model(
 print(corr_coef.shape)
 ```
 
+## Using ESM for fetching of transcription factor protein embeddings
+
+```python
+import torch
+from enformer_pytorch import Enformer
+from tf_bind_transformer import Model
+
+enformer = Enformer(
+    dim = 1536,
+    depth = 2,
+    target_length = 256
+)
+
+model = Model(
+    enformer = enformer,
+    use_esm_embeds = True,                            # set this to True
+    contextual_embed_dim = 256
+).cuda()
+
+# mock data
+
+seq = torch.randint(0, 4, (1, 196_608 // 2)).cuda()
+tf_aa = torch.randint(0, 21, (1, 4)).cuda()           # transcription factor amino acid sequence, from 0 to 20
+
+contextual_embed = torch.randn(1, 256).cuda()
+target = torch.randn(1, 256).cuda()
+
+# train
+
+loss = model(
+    seq,
+    aa = tf_aa,
+    contextual_embed = contextual_embed,
+    target = target
+)
+
+loss.backward()
+```
+
 ## Todo
 
-- [ ] ESM and AF2 embedding fetching integrations
+- [x] ESM and AF2 embedding fetching integrations
 - [ ] allow for fine-tuning layernorms of Enformer easily
 - [ ] normalization of interactions between genetic and amino acid sequence
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
