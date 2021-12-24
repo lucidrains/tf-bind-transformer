@@ -61,6 +61,6 @@ def get_esm_repr(
         return sequence_representations
 
     lengths = [seq_repr.shape[0] for seq_repr in sequence_representations]
-    masks = torch.arange(max(lengths))[None, :] <  torch.tensor(lengths)[:, None]
+    masks = torch.arange(max(lengths), device = device)[None, :] <  torch.tensor(lengths, device = device)[:, None]
     padded_sequences = pad_sequence(sequence_representations, batch_first = True)
     return padded_sequences, masks
