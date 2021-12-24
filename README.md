@@ -66,8 +66,6 @@ corr_coef = model(
     target = target,
     return_corr_coef = True
 )
-
-print(corr_coef.shape)
 ```
 
 ## Using ESM for fetching of transcription factor protein embeddings
