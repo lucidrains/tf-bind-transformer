@@ -138,7 +138,15 @@ class Model(nn.Module):
         # fine grained interaction between dna and protein sequences
         # FILIP https://arxiv.org/abs/2111.07783
 
-        interactions = einsum('b h i d, b h j d -> b h i j', seq_latent, aa_latent)
+        if seq_latent.shape[0] == 1:
+            # in the case one passes in 1 genomic sequence track
+            # but multiple factors + contexts, as in enformer training
+            seq_latent = rearrange(seq_latent, '1 ... -> ...')
+            einsum_eq = 'h i d, b h j d -> b h i j'
+        else:
+            einsum_eq = 'b h i d, b h j d -> b h i j'
+
+        interactions = einsum(einsum_eq, seq_latent, aa_latent)
 
         # use mean pooling along amino acid sequence length
 
