@@ -154,14 +154,18 @@ class Model(nn.Module):
             aa_mask = rearrange(aa_mask, 'b j -> b 1 1 j')
             interactions = interactions.masked_fill(aa_mask, 0.)
 
-        interactions = reduce(interactions, 'b h i j -> b i h', 'mean')
+        # reduction
+        # consider https://arxiv.org/abs/2111.01742 logavgexp
 
-        # derive contextual projection
+        interactions = torch.logsumexp(interactions, dim = -1)
+        interactions = rearrange(interactions, 'b h i -> b i h')
+
+        # derive contextual gating, from hypergrids paper
 
         gating = self.contextual_projection(contextual_embed).sigmoid()
         gating = rearrange(gating, 'b (i o) -> b i o', i = int(math.sqrt(gating.shape[-1])))
 
-        # project interactions with hyper weights
+        # gate interactions projection with context
 
         to_logits_w = rearrange(self.to_logits_w, 'i o -> 1 i o') * gating
         logits = einsum('b n d, b d e -> b n e', interactions, to_logits_w)
