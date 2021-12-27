@@ -149,11 +149,12 @@ class Model(nn.Module):
 
         interactions = einsum(einsum_eq, seq_latent, aa_latent)
 
-        # use mean pooling along amino acid sequence length
+        # use max pooling along amino acid sequence length
 
         if exists(aa_mask):
             aa_mask = rearrange(aa_mask, 'b j -> b 1 1 j')
-            interactions = interactions.masked_fill(aa_mask, 0.)
+            mask_value = -torch.finfo(interactions.dtype).max
+            interactions = interactions.masked_fill(aa_mask, mask_value)
 
         # reduction
         # consider https://arxiv.org/abs/2111.01742 logavgexp
