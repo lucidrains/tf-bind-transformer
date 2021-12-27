@@ -8,6 +8,7 @@ from einops.layers.torch import Rearrange
 
 from contextlib import contextmanager
 from enformer_pytorch import Enformer
+from enformer_pytorch.finetune import freeze_batchnorm_context
 
 from tf_bind_transformer.utils import init_esm, get_esm_repr
 
@@ -108,9 +109,9 @@ class Model(nn.Module):
     ):
         latent_heads = self.latent_heads
 
-        enformer_context = torch.no_grad if not finetune_enformer else null_context
+        enformer_context = torch.no_grad() if not finetune_enformer else freeze_batchnorm_context(self.enformer)
 
-        with enformer_context():
+        with enformer_context:
             _, seq_embed = self.enformer(seq, return_embeddings = True)
 
         # protein related embeddings
