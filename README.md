@@ -107,10 +107,61 @@ loss = model(
 loss.backward()
 ```
 
+One can also pass the context (cell type, experimental parameters) directly as free text, which will be encoded by a text transformer trained on pubmed abstracts.
+
+```python
+import torch
+from tf_bind_transformer import Model
+
+# instantiate enformer or load pretrained
+
+from enformer_pytorch import Enformer
+enformer = Enformer(
+    dim = 1536,
+    depth = 2,
+    target_length = 256
+)
+
+# instantiate model wrapper that takes in enformer
+
+model = Model(
+    enformer = enformer,
+    use_esm_embeds = True,
+    contextual_embed_dim = 768
+).cuda()
+
+# mock data
+
+seq = torch.randint(0, 4, (2, 196_608 // 2)).cuda() # for ACGT
+target = torch.randn(2, 256).cuda()
+
+tf_aa = [
+    'KVFGRCELAA',
+    'AMKRHGLDNY'
+]
+
+contextual_texts = [
+    'cell type: GM12878 | dual cross-linked',
+    'cell type: H1-hESC'
+]
+
+# train
+
+loss = model(
+    seq,
+    target = target,
+    aa = tf_aa,
+    contextual_free_text = contextual_texts,
+)
+
+loss.backward()
+```
+
 ## Todo
 
 - [x] ESM and AF2 embedding fetching integrations
 - [x] HF transformers integration for conditioning on free text
+- [ ] add caching for external embeddings
 - [ ] allow for fine-tuning layernorms of Enformer easily
 - [ ] normalization of interactions between genetic and amino acid sequence
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map

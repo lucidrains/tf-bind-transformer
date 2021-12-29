@@ -14,6 +14,8 @@ MODELS = dict(
 @torch.no_grad()
 def tokenize_texts(
     texts,
+    *,
+    device,
     max_length = 256,
     model_name = 'pubmed',
     hidden_state_index = -1,
@@ -33,6 +35,6 @@ def tokenize_texts(
     hidden_states = outputs.hidden_states[hidden_state_index]
 
     if return_cls_token:
-        return hidden_states[:, 0]
+        return hidden_states[:, 0].to(device)
 
-    return hidden_states.mean(dim = 1)
+    return hidden_states.mean(dim = 1).to(device)

@@ -120,7 +120,7 @@ class Model(nn.Module):
 
         if self.use_esm_embeds:
             assert exists(aa), 'aa must be passed in as tensor of integers from 0 - 20 (20 being padding)'
-            aa_embed, aa_mask = get_esm_repr(aa, *self.esm, return_padded_with_masks = True)
+            aa_embed, aa_mask = get_esm_repr(aa, *self.esm, device = seq.device, return_padded_with_masks = True)
         else:
             assert exists(aa_embed), 'protein embeddings must be given as aa_embed'
 
@@ -128,8 +128,7 @@ class Model(nn.Module):
 
         if not exists(contextual_embed):
             assert exists(contextual_free_text), 'context must be supplied as array of strings as contextual_free_text if contextual_embed is not supplied'
-            contextual_embed = tokenize_texts(contextual_free_text).detach()
-            contextual_embed = contextual_embed.to(seq_embed)
+            contextual_embed = tokenize_texts(contextual_free_text, device = seq.device).detach()
 
         # project both embeddings into shared latent space
 

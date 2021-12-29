@@ -42,10 +42,13 @@ def get_esm_repr(
     aa,
     model,
     batch_converter,
-    return_padded_with_masks = False
+    device,
+    return_padded_with_masks = False,
 ):
-    device = aa.device
-    data = [(f'protein{ind}', aa_str) for ind, aa_str in enumerate(tensor_to_aa_str(aa))]
+    if isinstance(aa, torch.Tensor):
+        aa = tensor_to_aa_str(aa)
+
+    data = [(f'protein{ind}', aa_str) for ind, aa_str in enumerate(aa)]
     batch_labels, batch_strs, batch_tokens = batch_converter(data)
 
     with torch.no_grad():
