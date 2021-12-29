@@ -10,7 +10,8 @@ from contextlib import contextmanager
 from enformer_pytorch import Enformer
 from enformer_pytorch.finetune import freeze_batchnorm_context
 
-from tf_bind_transformer.utils import init_esm, get_esm_repr
+from tf_bind_transformer.protein_utils import init_esm, get_esm_repr
+from tf_bind_transformer.context_utils import tokenize_texts
 
 # helper functions
 
@@ -101,7 +102,8 @@ class Model(nn.Module):
         *,
         aa = None,
         aa_embed = None,
-        contextual_embed,
+        contextual_embed = None,
+        contextual_free_text = None,
         aa_mask = None,
         target = None,
         return_corr_coef = False,
@@ -112,7 +114,7 @@ class Model(nn.Module):
         enformer_context = torch.no_grad() if not finetune_enformer else freeze_batchnorm_context(self.enformer)
 
         with enformer_context:
-            _, seq_embed = self.enformer(seq, return_embeddings = True)
+            seq_embed = self.enformer(seq, return_only_embeddings = True)
 
         # protein related embeddings
 
@@ -121,6 +123,13 @@ class Model(nn.Module):
             aa_embed, aa_mask = get_esm_repr(aa, *self.esm, return_padded_with_masks = True)
         else:
             assert exists(aa_embed), 'protein embeddings must be given as aa_embed'
+
+        # free text embeddings, for cell types and experimental params
+
+        if not exists(contextual_embed):
+            assert exists(contextual_free_text), 'context must be supplied as array of strings as contextual_free_text if contextual_embed is not supplied'
+            contextual_embed = tokenize_texts(contextual_free_text).detach()
+            contextual_embed = contextual_embed.to(seq_embed)
 
         # project both embeddings into shared latent space
 

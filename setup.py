@@ -21,7 +21,8 @@ setup(
     'einops>=0.3',
     'enformer-pytorch>=0.1.6',
     'fair-esm',
-    'torch>=1.6'
+    'torch>=1.6',
+    'transformers>=4.0'
   ],
   classifiers=[
     'Development Status :: 4 - Beta',
