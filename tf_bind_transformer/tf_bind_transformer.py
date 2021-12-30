@@ -8,7 +8,7 @@ from einops.layers.torch import Rearrange
 
 from contextlib import contextmanager
 from enformer_pytorch import Enformer
-from enformer_pytorch.finetune import freeze_batchnorms
+from enformer_pytorch.finetune import freeze_batchnorms_
 
 from tf_bind_transformer.protein_utils import init_esm, get_esm_repr
 from tf_bind_transformer.context_utils import tokenize_texts, get_contextual_dim
@@ -124,7 +124,7 @@ class Model(nn.Module):
     ):
         latent_heads = self.latent_heads
 
-        freeze_batchnorms(self.enformer)
+        freeze_batchnorms_(self.enformer)
 
         enformer_context = torch.no_grad() if not finetune_enformer else null_context()
 
@@ -135,7 +135,7 @@ class Model(nn.Module):
 
         if self.use_esm_embeds:
             assert exists(aa), 'aa must be passed in as tensor of integers from 0 - 20 (20 being padding)'
-            aa_embed, aa_mask = get_esm_repr(aa, *self.esm, device = seq.device, return_padded_with_masks = True)
+            aa_embed, aa_mask = get_esm_repr(aa, *self.esm, device = seq.device)
         else:
             assert exists(aa_embed), 'protein embeddings must be given as aa_embed'
 

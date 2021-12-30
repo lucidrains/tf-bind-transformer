@@ -1,6 +1,7 @@
 import torch
 import esm
 from torch.nn.utils.rnn import pad_sequence
+from tf_bind_transformer.cache_utils import cache_fn
 
 INT_TO_AA_STR_MAP = {
     0: 'A',
@@ -38,32 +39,36 @@ def init_esm():
     batch_converter = alphabet.get_batch_converter()
     return model, batch_converter
 
-def get_esm_repr(
-    aa,
+def get_single_esm_repr(
+    protein_str,
     model,
-    batch_converter,
-    device,
-    return_padded_with_masks = False,
+    batch_converter
 ):
-    if isinstance(aa, torch.Tensor):
-        aa = tensor_to_aa_str(aa)
-
-    data = [(f'protein{ind}', aa_str) for ind, aa_str in enumerate(aa)]
+    data = [('protein', protein_str)]
     batch_labels, batch_strs, batch_tokens = batch_converter(data)
 
     with torch.no_grad():
         results = model(batch_tokens, repr_layers=[33])
-    token_representations = results["representations"][33]
 
-    sequence_representations = []
-    for i, (_, seq) in enumerate(data):
-        token_repr = token_representations[i, 1 : len(seq) + 1]
-        sequence_representations.append(token_repr.to(device))
+    token_representations = results['representations'][33]
+    representation = token_representations[0][1 : len(protein_str) + 1]
+    return representation
 
-    if not return_padded_with_masks:
-        return sequence_representations
+def get_esm_repr(
+    proteins,
+    model,
+    batch_converter,
+    device
+):
+    if isinstance(proteins, torch.Tensor):
+        proteins = tensor_to_aa_str(proteins)
 
-    lengths = [seq_repr.shape[0] for seq_repr in sequence_representations]
+    get_protein_repr_fn = cache_fn(get_single_esm_repr, path = 'esm/proteins')
+
+    representations = [get_protein_repr_fn(protein, model, batch_converter) for protein in proteins]
+
+    lengths = [seq_repr.shape[0] for seq_repr in representations]
     masks = torch.arange(max(lengths), device = device)[None, :] <  torch.tensor(lengths, device = device)[:, None]
-    padded_sequences = pad_sequence(sequence_representations, batch_first = True)
-    return padded_sequences, masks
+    padded_representations = pad_sequence(representations, batch_first = True)
+
+    return padded_representations.to(device), masks.to(device)

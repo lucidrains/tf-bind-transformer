@@ -160,16 +160,35 @@ loss = model(
 loss.backward()
 ```
 
+## Caching
+
+During training, protein sequences and contextual strings are cached to `~/.cache.tf.bind.transformer` directory. If you would like to make sure the caching is working, you just need to run your training script with `VERBOSE=1`
+
+ex.
+
+```bash
+$ VERBOSE=1 python train.py
+```
+
+You can also force a cache clearance
+
+```bash
+$ CLEAR_CACHE=1 python train.py
+```
+
 ## Todo
 
 - [x] ESM and AF2 embedding fetching integrations
 - [x] HF transformers integration for conditioning on free text
 - [x] allow for fine-tuning layernorms of Enformer easily
-- [ ] add caching for external embeddings
+- [x] add caching for external embeddings
 - [ ] normalization of interactions between genetic and amino acid sequence
+- [ ] take care of caching genetic sequences when enformer is frozen
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
 - [ ] offer different ways of conditioning both paths with contextual embedding (hypergrid, ISAB cross attention, etc)
 - [ ] support for custom transformers other than enformer
+- [ ] use masked mean in mean pooled context representation
+- [ ] figure out a way for external models (ESM, transformers) to be omitted from state dictionary on saving
 
 ## Appreciation
 
