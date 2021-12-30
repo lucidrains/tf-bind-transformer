@@ -63,7 +63,8 @@ class Model(nn.Module):
         use_esm_embeds = False,
         use_free_text_context = False,
         free_text_context_encoder = 'pubmed',
-        free_text_embed_method = 'cls'
+        free_text_embed_method = 'cls',
+        dropout = 0.
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
@@ -99,6 +100,8 @@ class Model(nn.Module):
 
         self.to_logits_w = nn.Parameter(torch.randn(latent_heads, latent_heads))
         self.contextual_projection = nn.Linear(contextual_embed_dim, latent_heads * latent_heads)
+
+        self.dropout = nn.Dropout(dropout)
 
         self.to_pred = nn.Sequential(
             nn.Linear(latent_heads, 1),
@@ -172,6 +175,10 @@ class Model(nn.Module):
             einsum_eq = 'b h i d, b h j d -> b h i j'
 
         interactions = einsum(einsum_eq, seq_latent, aa_latent)
+
+        # dropout
+
+        interactions = self.dropout(interactions)
 
         # use max pooling along amino acid sequence length
 
