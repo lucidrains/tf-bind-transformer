@@ -27,7 +27,16 @@ def tokenize_text(
     path = MODELS[model_name]['path']
     tokenizer = AutoTokenizer.from_pretrained(path)
     model = AutoModelForMaskedLM.from_pretrained(path)
-    encoding = tokenizer.batch_encode_plus([text], add_special_tokens = True, padding = True, truncation = True, max_length = max_length, return_attention_mask = True, return_tensors = "pt")
+
+    encoding = tokenizer.batch_encode_plus(
+        [text],
+        add_special_tokens = True,
+        padding = True,
+        truncation = True,
+        max_length = max_length,
+        return_attention_mask = True,
+        return_tensors = 'pt'
+    )
 
     outputs = model(**encoding, output_hidden_states = True)
     hidden_state = outputs.hidden_states[hidden_state_index][0]

@@ -59,7 +59,7 @@ def cache_fn(
     @run_once
     def clear_cache_folder_():
         cache_path = rmtree(str(CACHE_PATH / path))
-        CACHE_PATH.mkdir(parents = True, exist_ok = True)
+        (CACHE_PATH / path).mkdir(parents = True, exist_ok = True)
 
     @wraps(fn)
     def inner(t, *args, **kwargs):
