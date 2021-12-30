@@ -169,6 +169,7 @@ loss.backward()
 - [ ] normalization of interactions between genetic and amino acid sequence
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
 - [ ] offer different ways of conditioning both paths with contextual embedding (hypergrid, ISAB cross attention, etc)
+- [ ] support for custom transformers other than enformer
 
 ## Appreciation
 
