@@ -11,7 +11,7 @@ from enformer_pytorch import Enformer
 from enformer_pytorch.finetune import freeze_batchnorm_context
 
 from tf_bind_transformer.protein_utils import init_esm, get_esm_repr
-from tf_bind_transformer.context_utils import tokenize_texts
+from tf_bind_transformer.context_utils import tokenize_texts, get_contextual_dim
 
 # helper functions
 
@@ -60,11 +60,18 @@ class Model(nn.Module):
         latent_heads = 32,
         aa_embed_dim = None,
         contextual_embed_dim = 256,
-        use_esm_embeds = False
+        use_esm_embeds = False,
+        use_free_text_context = False,
+        free_text_context_encoder = 'pubmed'
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
         self.enformer = enformer
+
+        # contextual embedding related variables
+
+        self.use_free_text_context = use_free_text_context
+        contextual_embed_dim = get_contextual_dim(free_text_context_encoder)
 
         # protein embedding related variables
 

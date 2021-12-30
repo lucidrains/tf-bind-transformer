@@ -11,6 +11,10 @@ MODELS = dict(
     )
 )
 
+def get_contextual_dim(model_name):
+    assert model_name in MODELS
+    return MODELS[model_name]['dim']
+
 @torch.no_grad()
 def tokenize_texts(
     texts,
