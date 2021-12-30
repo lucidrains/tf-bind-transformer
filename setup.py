@@ -19,7 +19,7 @@ setup(
   ],
   install_requires=[
     'einops>=0.3',
-    'enformer-pytorch>=0.1.9',
+    'enformer-pytorch>=0.1.11',
     'fair-esm',
     'torch>=1.6',
     'transformers>=4.0'
