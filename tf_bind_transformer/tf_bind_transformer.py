@@ -62,7 +62,8 @@ class Model(nn.Module):
         contextual_embed_dim = 256,
         use_esm_embeds = False,
         use_free_text_context = False,
-        free_text_context_encoder = 'pubmed'
+        free_text_context_encoder = 'pubmed',
+        free_text_embed_method = 'cls'
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
@@ -70,6 +71,8 @@ class Model(nn.Module):
 
         # contextual embedding related variables
 
+        assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
+        self.free_text_embed_method = free_text_embed_method
         self.use_free_text_context = use_free_text_context
         contextual_embed_dim = get_contextual_dim(free_text_context_encoder)
 
@@ -136,7 +139,12 @@ class Model(nn.Module):
         if not exists(contextual_embed):
             assert self.use_free_text_context, 'use_free_text_context must be set to True if one is not passing in contextual_embed tensor'
             assert exists(contextual_free_text), 'context must be supplied as array of strings as contextual_free_text if contextual_embed is not supplied'
-            contextual_embed = tokenize_texts(contextual_free_text, device = seq.device).detach()
+
+            contextual_embed = tokenize_texts(
+                contextual_free_text,
+                return_cls_token = (self.free_text_embed_method == 'cls'),
+                device = seq.device
+            )
 
         # project both embeddings into shared latent space
 

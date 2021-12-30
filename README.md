@@ -107,6 +107,8 @@ loss = model(
 loss.backward()
 ```
 
+## Context passed in as free text
+
 One can also pass the context (cell type, experimental parameters) directly as free text, which will be encoded by a text transformer trained on pubmed abstracts.
 
 ```python
@@ -127,7 +129,8 @@ enformer = Enformer(
 model = Model(
     enformer = enformer,
     use_esm_embeds = True,
-    use_free_text_context = True
+    use_free_text_context = True,        # this must be set to True
+    free_text_embed_method = 'mean_pool' # allow for mean pooling of embeddings, instead of using CLS token
 ).cuda()
 
 # mock data
