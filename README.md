@@ -127,7 +127,7 @@ enformer = Enformer(
 model = Model(
     enformer = enformer,
     use_esm_embeds = True,
-    contextual_embed_dim = 768
+    use_free_text_context = True
 ).cuda()
 
 # mock data

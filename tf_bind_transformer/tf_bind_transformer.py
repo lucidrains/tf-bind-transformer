@@ -134,6 +134,7 @@ class Model(nn.Module):
         # free text embeddings, for cell types and experimental params
 
         if not exists(contextual_embed):
+            assert self.use_free_text_context, 'use_free_text_context must be set to True if one is not passing in contextual_embed tensor'
             assert exists(contextual_free_text), 'context must be supplied as array of strings as contextual_free_text if contextual_embed is not supplied'
             contextual_embed = tokenize_texts(contextual_free_text, device = seq.device).detach()
 
