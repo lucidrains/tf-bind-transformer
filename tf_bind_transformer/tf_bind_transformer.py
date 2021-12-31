@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn.functional as F
 from torch import nn, einsum
+from functools import wraps
 
 from einops import rearrange, reduce
 from einops.layers.torch import Rearrange
@@ -10,7 +11,8 @@ from contextlib import contextmanager
 from enformer_pytorch import Enformer
 from enformer_pytorch.finetune import freeze_batchnorms_, freeze_all_but_layernorms_
 
-from tf_bind_transformer.protein_utils import get_esm_repr
+from tf_bind_transformer.cache_utils import cache_fn
+from tf_bind_transformer.protein_utils import get_esm_repr, ESM_EMBED_DIM
 from tf_bind_transformer.context_utils import get_text_repr, get_contextual_dim
 
 # helper functions
@@ -48,6 +50,20 @@ def pearson_corr_coef(x, y, eps = 1e-8):
     r = (exy - ex * ey) / (torch.sqrt(ex2 - (ex * ex)) * torch.sqrt(ey2 - (ey * ey)) + eps)
     return r.mean(dim = -1)
 
+# genetic sequence caching enformer forward decorator
+
+def cache_enformer_forward(fn):
+    cached_forward = cache_fn(fn, clear = True, path = 'genetic')
+
+    @wraps(fn)
+    def inner(seqs, *args, **kwargs):
+        seq_list = seqs.unbind(dim = 0)
+        seq_cache_keys = [''.join(list(map(str, one_seq.tolist()))) for one_seq in seq_list]
+        outputs = [cached_forward(one_seq, *args, __cache_key = seq_cache_key, **kwargs) for one_seq, seq_cache_key in zip(seq_list, seq_cache_keys)]
+        return torch.stack(outputs)
+
+    return inner
+
 # model
 
 class Model(nn.Module):
@@ -82,7 +98,7 @@ class Model(nn.Module):
         self.use_esm_embeds = use_esm_embeds
 
         if use_esm_embeds:
-            aa_embed_dim = 1280
+            aa_embed_dim = ESM_EMBED_DIM
         else:
             assert exists(aa_embed_dim), 'AA embedding dimensions must be set if not using ESM'
 
@@ -129,6 +145,7 @@ class Model(nn.Module):
         # - always freeze the batchnorms
 
         freeze_batchnorms_(self.enformer)
+        enformer_forward = self.enformer.forward
 
         if finetune_enformer:
             enformer_context = null_context()
@@ -138,11 +155,12 @@ class Model(nn.Module):
         else:
             self.enformer.eval()
             enformer_context = torch.no_grad()
+            enformer_forward = cache_enformer_forward(enformer_forward)
 
         # genetic sequence embedding
 
         with enformer_context:
-            seq_embed = self.enformer(seq, return_only_embeddings = True)
+            seq_embed = enformer_forward(seq, return_only_embeddings = True)
 
         # protein related embeddings
 

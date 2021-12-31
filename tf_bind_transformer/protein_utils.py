@@ -5,6 +5,8 @@ from tf_bind_transformer.cache_utils import cache_fn, run_once
 
 GLOBAL_VARIABLES = dict(model = None)
 
+ESM_EMBED_DIM = 1280
+
 INT_TO_AA_STR_MAP = {
     0: 'A',
     1: 'C',
@@ -36,17 +38,16 @@ def tensor_to_aa_str(t):
         str_seqs.append(''.join(str_seq))
     return str_seqs
 
-@run_once
+@run_once('init_esm')
 def init_esm():
     model, alphabet = esm.pretrained.esm1b_t33_650M_UR50S()
     batch_converter = alphabet.get_batch_converter()
     GLOBAL_VARIABLES['model'] = (model, batch_converter)
 
-def get_single_esm_repr(
-    protein_str,
-    model,
-    batch_converter
-):
+def get_single_esm_repr(protein_str):
+    init_esm()
+    model, batch_converter = GLOBAL_VARIABLES['model']
+
     data = [('protein', protein_str)]
     batch_labels, batch_strs, batch_tokens = batch_converter(data)
 
@@ -57,20 +58,13 @@ def get_single_esm_repr(
     representation = token_representations[0][1 : len(protein_str) + 1]
     return representation
 
-def get_esm_repr(
-    proteins,
-    device
-):
-    init_esm()
-
-    model = GLOBAL_VARIABLES['model']
-
+def get_esm_repr(proteins, device):
     if isinstance(proteins, torch.Tensor):
         proteins = tensor_to_aa_str(proteins)
 
     get_protein_repr_fn = cache_fn(get_single_esm_repr, path = 'esm/proteins')
 
-    representations = [get_protein_repr_fn(protein, *model) for protein in proteins]
+    representations = [get_protein_repr_fn(protein) for protein in proteins]
 
     lengths = [seq_repr.shape[0] for seq_repr in representations]
     masks = torch.arange(max(lengths), device = device)[None, :] <  torch.tensor(lengths, device = device)[:, None]

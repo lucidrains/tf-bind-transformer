@@ -15,6 +15,9 @@ VERBOSE = os.getenv('VERBOSE', None) is not None
 
 # helper functions
 
+def exists(val):
+    return val is not None
+
 def log(s):
     if not VERBOSE:
         return
@@ -24,23 +27,35 @@ def md5_hash_fn(s):
     encoded = s.encode('utf-8')
     return hashlib.md5(encoded).hexdigest()
 
-def run_once(fn):
-    has_ran = False
-    output = None
+# run once function
 
-    @wraps(fn)
-    def inner(*args, **kwargs):
-        nonlocal has_ran
-        nonlocal output
+GLOBAL_RUN_RECORDS = dict()
 
-        if has_ran:
+def run_once(global_id = None):
+    def outer(fn):
+        has_ran_local = False
+        output = None
+
+        @wraps(fn)
+        def inner(*args, **kwargs):
+            nonlocal has_ran_local
+            nonlocal output
+
+            has_ran = GLOBAL_RUN_RECORDS.get(global_id, False) if exists(global_id) else has_ran_local
+
+            if has_ran:
+                return output
+
+            output = fn(*args, **kwargs)
+
+            if exists(global_id):
+                GLOBAL_RUN_RECORDS[global_id] = True
+
+            has_ran = True
             return output
 
-        output = fn(*args, **kwargs)
-        has_ran = True
-        return output
-    return inner
-
+        return inner
+    return outer
 
 # caching function
 
@@ -56,17 +71,19 @@ def cache_fn(
 
     (CACHE_PATH / path).mkdir(parents = True, exist_ok = True)
 
-    @run_once
+    @run_once(path)
     def clear_cache_folder_():
         cache_path = rmtree(str(CACHE_PATH / path))
         (CACHE_PATH / path).mkdir(parents = True, exist_ok = True)
 
     @wraps(fn)
-    def inner(t, *args, **kwargs):
+    def inner(t, *args, __cache_key = None, **kwargs):
         if clear:
             clear_cache_folder_()
 
-        key = hash_fn(t)
+        cache_str = __cache_key if exists(__cache_key) else t
+        key = hash_fn(cache_str)
+
         entry_path = CACHE_PATH / path / f'{key}.pt'
 
         if entry_path.exists():

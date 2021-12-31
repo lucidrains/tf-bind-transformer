@@ -18,7 +18,7 @@ def get_contextual_dim(model_name):
     assert model_name in MODELS
     return MODELS[model_name]['dim']
 
-@run_once
+@run_once('init_transformer')
 def init_transformer(model_name):
     path = MODELS[model_name]['path']
     GLOBAL_VARIABLES['tokenizer'] = AutoTokenizer.from_pretrained(path)
