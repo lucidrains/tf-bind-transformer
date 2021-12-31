@@ -55,7 +55,7 @@ def tokenize_text(
 
     return hidden_state.mean(dim = 0)
 
-def tokenize_texts(
+def get_text_repr(
     texts,
     *,
     device,

@@ -10,8 +10,8 @@ from contextlib import contextmanager
 from enformer_pytorch import Enformer
 from enformer_pytorch.finetune import freeze_batchnorms_, freeze_all_but_layernorms_
 
-from tf_bind_transformer.protein_utils import init_esm, get_esm_repr
-from tf_bind_transformer.context_utils import tokenize_texts, get_contextual_dim
+from tf_bind_transformer.protein_utils import get_esm_repr
+from tf_bind_transformer.context_utils import get_text_repr, get_contextual_dim
 
 # helper functions
 
@@ -158,7 +158,7 @@ class Model(nn.Module):
             assert self.use_free_text_context, 'use_free_text_context must be set to True if one is not passing in contextual_embed tensor'
             assert exists(contextual_free_text), 'context must be supplied as array of strings as contextual_free_text if contextual_embed is not supplied'
 
-            contextual_embed = tokenize_texts(
+            contextual_embed = get_text_repr(
                 contextual_free_text,
                 return_cls_token = (self.free_text_embed_method == 'cls'),
                 device = seq.device
