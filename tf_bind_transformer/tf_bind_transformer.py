@@ -57,6 +57,9 @@ def cache_enformer_forward(fn):
 
     @wraps(fn)
     def inner(seqs, *args, **kwargs):
+        if seqs.ndim == 3:
+            seqs = seqs.argmax(dim = -1)
+
         seq_list = seqs.unbind(dim = 0)
         seq_cache_keys = [''.join(list(map(str, one_seq.tolist()))) for one_seq in seq_list]
         outputs = [cached_forward(one_seq, *args, __cache_key = seq_cache_key, **kwargs) for one_seq, seq_cache_key in zip(seq_list, seq_cache_keys)]
