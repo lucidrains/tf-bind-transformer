@@ -8,7 +8,7 @@ from einops.layers.torch import Rearrange
 
 from contextlib import contextmanager
 from enformer_pytorch import Enformer
-from enformer_pytorch.finetune import freeze_batchnorms_
+from enformer_pytorch.finetune import freeze_batchnorms_, freeze_all_but_layernorms_
 
 from tf_bind_transformer.protein_utils import init_esm, get_esm_repr
 from tf_bind_transformer.context_utils import tokenize_texts, get_contextual_dim
@@ -120,7 +120,8 @@ class Model(nn.Module):
         aa_mask = None,
         target = None,
         return_corr_coef = False,
-        finetune_enformer = False
+        finetune_enformer = False,
+        finetune_enformer_ln_only = False
     ):
         latent_heads = self.latent_heads
 
@@ -132,6 +133,9 @@ class Model(nn.Module):
 
         if finetune_enformer:
             enformer_context = null_context()
+        elif finetune_enformer_ln_only:
+            enformer_context = null_context()
+            freeze_all_but_layernorms_(self.enformer)
         else:
             self.enformer.eval()
             enformer_context = torch.no_grad()
