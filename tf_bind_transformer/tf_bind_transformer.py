@@ -23,15 +23,41 @@ def exists(val):
 def default(val, d):
     return val if exists(val) else d
 
+
+@contextmanager
+def null_context():
+    yield
+
+# tensor helpers
+
 def log(t, eps = 1e-20):
     return torch.log(t + eps)
 
 def l2norm(t):
     return F.normalize(t, dim = -1)
 
-@contextmanager
-def null_context():
-    yield
+def logavgexp(
+    t,
+    mask = None,
+    dim = -1,
+    eps = 1e-20,
+    temp = 0.01
+):
+    if exists(mask):
+        mask_value = -torch.finfo(t.dtype).max
+        t = t.masked_fill(mask, mask_value)
+        n = mask.sum(dim = dim)
+        norm = torch.log(n)
+    else:
+        n = t.shape[dim]
+        norm = math.log(n)
+
+    t = t / temp
+    max_t = t.amax(dim = dim).detach()
+    t_exp = (t - max_t.unsqueeze(dim)).exp()
+    avg_exp = t_exp.sum(dim = dim).clamp(min = eps) / n
+    out = log(avg_exp, eps = eps) + max_t - norm
+    return out * temp
 
 # losses and metrics
 
@@ -216,17 +242,12 @@ class Model(nn.Module):
 
         interactions = self.dropout(interactions)
 
-        # use max pooling along amino acid sequence length
+        # reduction
 
         if exists(aa_mask):
             aa_mask = rearrange(aa_mask, 'b j -> b 1 1 j')
-            mask_value = -torch.finfo(interactions.dtype).max
-            interactions = interactions.masked_fill(aa_mask, mask_value)
 
-        # reduction
-        # consider https://arxiv.org/abs/2111.01742 logavgexp
-
-        interactions = torch.logsumexp(interactions, dim = -1)
+        interactions = logavgexp(interactions, mask = aa_mask, dim = -1)
         interactions = rearrange(interactions, 'b h i -> b i h')
 
         # derive contextual gating, from hypergrids paper

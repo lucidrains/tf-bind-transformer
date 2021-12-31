@@ -231,3 +231,14 @@ This work is generously sponsored by <a href="https://github.com/jeffhsu3">Jeff 
     primaryClass = {cs.CL}
 }
 ```
+
+```bibtex
+@misc{lowe2021logavgexp,
+    title   = {LogAvgExp Provides a Principled and Performant Global Pooling Operator},
+    author  = {Scott C. Lowe and Thomas Trappenberg and Sageev Oore},
+    year    = {2021},
+    eprint  = {2111.01742},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.LG}
+}
+```
