@@ -1,1 +1,1 @@
-from tf_bind_transformer.tf_bind_transformer import Model
+from tf_bind_transformer.tf_bind_transformer import AdapterModel, AttentionAdapterModel

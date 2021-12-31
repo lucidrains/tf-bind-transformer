@@ -14,7 +14,7 @@ $ python setup.py install --user
 
 ```python
 import torch
-from tf_bind_transformer import Model
+from tf_bind_transformer import AdapterModel
 
 # instantiate enformer or load pretrained
 
@@ -27,7 +27,7 @@ enformer = Enformer(
 
 # instantiate model wrapper that takes in enformer
 
-model = Model(
+model = AdapterModel(
     enformer = enformer,
     aa_embed_dim = 512,
     contextual_embed_dim = 256
@@ -73,7 +73,7 @@ corr_coef = model(
 ```python
 import torch
 from enformer_pytorch import Enformer
-from tf_bind_transformer import Model
+from tf_bind_transformer import AdapterModel
 
 enformer = Enformer(
     dim = 1536,
@@ -81,7 +81,7 @@ enformer = Enformer(
     target_length = 256
 )
 
-model = Model(
+model = AdapterModel(
     enformer = enformer,
     use_esm_embeds = True,                            # set this to True
     contextual_embed_dim = 256
@@ -113,7 +113,7 @@ One can also pass the context (cell type, experimental parameters) directly as f
 
 ```python
 import torch
-from tf_bind_transformer import Model
+from tf_bind_transformer import AdapterModel
 
 # instantiate enformer or load pretrained
 
@@ -126,7 +126,7 @@ enformer = Enformer(
 
 # instantiate model wrapper that takes in enformer
 
-model = Model(
+model = AdapterModel(
     enformer = enformer,
     use_esm_embeds = True,
     use_free_text_context = True,        # this must be set to True
@@ -184,10 +184,11 @@ $ CLEAR_CACHE=1 python train.py
 - [x] add caching for external embeddings
 - [x] figure out a way for external models (ESM, transformers) to be omitted from state dictionary on saving (use singletons)
 - [x] take care of caching genetic sequences when enformer is frozen
+- [x] offer a fully transformer variant with cross-attention with shared attention matrix and FiLM conditioning with contextual embed
+- [ ] also offer using pooled genetic / protein sequence concatted with context -> project -> squeeze excitation type conditioning
 - [ ] normalization of interactions between genetic and amino acid sequence
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
 - [ ] support for custom transformers other than enformer
-- [ ] offer a fully transformer variant with cross-attention with shared attention matrix and FiLM conditioning with contextual embed
 - [ ] use checkpointing when fine-tuning enformer
 
 ## Appreciation

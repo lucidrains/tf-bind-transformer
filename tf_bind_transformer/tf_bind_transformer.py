@@ -45,7 +45,7 @@ def logavgexp(
 ):
     if exists(mask):
         mask_value = -torch.finfo(t.dtype).max
-        t = t.masked_fill(mask, mask_value)
+        t = t.masked_fill(~mask, mask_value)
         n = mask.sum(dim = dim)
         norm = torch.log(n)
     else:
@@ -95,12 +95,29 @@ def cache_enformer_forward(fn):
 
 # model
 
-class Model(nn.Module):
+class FiLM(nn.Module):
+    def __init__(
+        self,
+        dim,
+        conditioned_dim
+    ):
+        super().__init__()
+        self.to_gamma = nn.Linear(dim, conditioned_dim)
+        self.to_bias = nn.Linear(dim, conditioned_dim)
+
+    def forward(self, x, condition):
+        gamma = self.to_gamma(condition)
+        bias = self.to_bias(condition)
+
+        x = x * rearrange(gamma, 'b d -> b 1 d')
+        x = x + rearrange(bias, 'b d -> b 1 d')
+        return x
+
+class AdapterModel(nn.Module):
     def __init__(
         self,
         *,
         enformer,
-        enformer_dim = 1536,
         latent_dim = 64,
         latent_heads = 32,
         aa_embed_dim = None,
@@ -114,6 +131,7 @@ class Model(nn.Module):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
         self.enformer = enformer
+        enformer_dim = enformer.dim * 2
 
         # contextual embedding related variables
 
@@ -136,7 +154,7 @@ class Model(nn.Module):
         self.latent_heads = latent_heads
         inner_latent_dim = latent_heads * latent_dim
 
-        self.seq_embed_to_latent_w = nn.Parameter(torch.randn(enformer_dim * 2, inner_latent_dim))
+        self.seq_embed_to_latent_w = nn.Parameter(torch.randn(enformer_dim, inner_latent_dim))
         self.seq_embed_to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
 
         self.aa_seq_embed_to_latent_w = nn.Parameter(torch.randn(aa_embed_dim, inner_latent_dim))
@@ -259,6 +277,181 @@ class Model(nn.Module):
 
         to_logits_w = rearrange(self.to_logits_w, 'i o -> 1 i o') * gating
         logits = einsum('b n d, b d e -> b n e', interactions, to_logits_w)
+
+        # to *-seq prediction
+
+        pred = self.to_pred(logits)
+
+        if exists(target):
+            if return_corr_coef:
+                return pearson_corr_coef(pred, target)
+
+            return poisson_loss(pred, target)
+
+        return pred
+
+# cross attention based tf-bind-transformer
+
+class AttentionAdapterModel(nn.Module):
+    def __init__(
+        self,
+        *,
+        enformer,
+        aa_embed_dim = None,
+        contextual_embed_dim = 256,
+        cross_attn_dim_head = 64,
+        cross_attn_heads = 8,
+        use_esm_embeds = False,
+        use_free_text_context = False,
+        free_text_context_encoder = 'pubmed',
+        free_text_embed_method = 'cls',
+        dropout = 0.
+    ):
+        super().__init__()
+        assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
+        self.enformer = enformer
+        enformer_dim = enformer.dim * 2
+
+        # contextual embedding related variables
+
+        assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
+        self.free_text_embed_method = free_text_embed_method
+        self.use_free_text_context = use_free_text_context
+        contextual_embed_dim = get_contextual_dim(free_text_context_encoder)
+
+        # protein embedding related variables
+
+        self.use_esm_embeds = use_esm_embeds
+
+        if use_esm_embeds:
+            aa_embed_dim = ESM_EMBED_DIM
+        else:
+            assert exists(aa_embed_dim), 'AA embedding dimensions must be set if not using ESM'
+
+        # film
+
+        self.film_genetic  = FiLM(contextual_embed_dim, enformer_dim)
+        self.film_genetic2 = FiLM(contextual_embed_dim, enformer_dim)
+        self.film_protein  = FiLM(contextual_embed_dim, aa_embed_dim)
+
+        # cross attention
+
+        self.scale = cross_attn_dim_head ** -0.5
+        self.heads = cross_attn_heads
+        inner_dim = cross_attn_dim_head * cross_attn_heads
+
+        self.to_queries = nn.Linear(enformer_dim, inner_dim, bias = False)
+        self.to_keys = nn.Linear(aa_embed_dim, inner_dim, bias = False)
+        self.to_values = nn.Linear(aa_embed_dim, inner_dim, bias = False)
+        self.to_out = nn.Linear(inner_dim, enformer_dim)
+
+        self.attn_dropout = nn.Dropout(dropout)
+
+        self.feedforward = nn.Sequential(
+            nn.LayerNorm(enformer_dim),
+            nn.Linear(enformer_dim, enformer_dim * 2),
+            nn.GELU(),
+            nn.Linear(enformer_dim * 2, enformer_dim)
+        )
+
+        # to predictions
+
+        self.to_pred = nn.Sequential(
+            nn.Linear(enformer_dim, 1),
+            Rearrange('... 1 -> ...'),
+            nn.Softplus()
+        )
+
+    def forward(
+        self,
+        seq,
+        *,
+        aa = None,
+        aa_embed = None,
+        contextual_embed = None,
+        contextual_free_text = None,
+        aa_mask = None,
+        target = None,
+        return_corr_coef = False,
+        finetune_enformer = False,
+        finetune_enformer_ln_only = False
+    ):
+        h = self.heads
+
+        # prepare enformer for training
+        # - set to eval and no_grad if not fine-tuning
+        # - always freeze the batchnorms
+
+        freeze_batchnorms_(self.enformer)
+        enformer_forward = self.enformer.forward
+
+        if finetune_enformer:
+            enformer_context = null_context()
+        elif finetune_enformer_ln_only:
+            enformer_context = null_context()
+            freeze_all_but_layernorms_(self.enformer)
+        else:
+            self.enformer.eval()
+            enformer_context = torch.no_grad()
+            enformer_forward = cache_enformer_forward(enformer_forward)
+
+        # genetic sequence embedding
+
+        with enformer_context:
+            seq_embed = enformer_forward(seq, return_only_embeddings = True)
+
+        # protein related embeddings
+
+        if self.use_esm_embeds:
+            assert exists(aa), 'aa must be passed in as tensor of integers from 0 - 20 (20 being padding)'
+            aa_embed, aa_mask = get_esm_repr(aa, device = seq.device)
+        else:
+            assert exists(aa_embed), 'protein embeddings must be given as aa_embed'
+
+        # free text embeddings, for cell types and experimental params
+
+        if not exists(contextual_embed):
+            assert self.use_free_text_context, 'use_free_text_context must be set to True if one is not passing in contextual_embed tensor'
+            assert exists(contextual_free_text), 'context must be supplied as array of strings as contextual_free_text if contextual_embed is not supplied'
+
+            contextual_embed = get_text_repr(
+                contextual_free_text,
+                return_cls_token = (self.free_text_embed_method == 'cls'),
+                device = seq.device
+            )
+
+        # film condition both genetic and protein sequences
+
+        seq_embed = self.film_genetic(seq_embed, contextual_embed)
+        aa_embed = self.film_protein(aa_embed, contextual_embed)
+
+        # cross attention
+
+        queries, keys, values = self.to_queries(seq_embed), self.to_keys(aa_embed), self.to_values(aa_embed)
+        queries, keys, values = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), (queries, keys, values))
+
+        sim = einsum('b h i d, b h j d -> b h i j', queries, keys) * self.scale
+
+        aa_mask = rearrange(aa_mask, 'b j -> b 1 1 j')
+
+        sim = sim.masked_fill(~aa_mask, -torch.finfo(sim.dtype).max)
+
+        attn = sim.softmax(dim = -1)
+        attn = self.attn_dropout(attn)
+
+        out = einsum('b h i j, b h j d -> b h i d', attn, values)
+        out = rearrange(out, 'b h n d -> b n (h d)')
+        out = self.to_out(out)
+
+        seq_embed = seq_embed + out
+
+        # condition one more time
+
+        seq_embed = self.film_genetic2(seq_embed, contextual_embed)
+
+        # feedforward
+
+        logits = self.feedforward(seq_embed) + seq_embed
 
         # to *-seq prediction
 
