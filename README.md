@@ -188,6 +188,7 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] support for custom transformers other than enformer
 - [ ] figure out a way for external models (ESM, transformers) to be omitted from state dictionary on saving
 - [ ] offer a fully transformer variant with cross-attention with shared attention matrix and FiLM conditioning with contextual embed
+- [ ] use checkpointing when fine-tuning enformer
 
 ## Appreciation
 

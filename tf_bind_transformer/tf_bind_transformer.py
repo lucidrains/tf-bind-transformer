@@ -124,9 +124,19 @@ class Model(nn.Module):
     ):
         latent_heads = self.latent_heads
 
+        # prepare enformer for training
+        # - set to eval and no_grad if not fine-tuning
+        # - always freeze the batchnorms
+
         freeze_batchnorms_(self.enformer)
 
-        enformer_context = torch.no_grad() if not finetune_enformer else null_context()
+        if finetune_enformer:
+            enformer_context = null_context()
+        else:
+            self.enformer.eval()
+            enformer_context = torch.no_grad()
+
+        # genetic sequence embedding
 
         with enformer_context:
             seq_embed = self.enformer(seq, return_only_embeddings = True)
