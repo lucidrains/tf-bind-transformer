@@ -1,7 +1,7 @@
 import torch
 import logging
 from transformers import AutoTokenizer, AutoModelForMaskedLM, logging
-from tf_bind_transformer.cache_utils import cache_fn
+from tf_bind_transformer.cache_utils import cache_fn, run_once
 
 logging.set_verbosity_error()
 
@@ -12,17 +12,17 @@ MODELS = dict(
     )
 )
 
-GLOBAL_VARIABLES = dict(initted = False, model = None, tokenizer = None)
+GLOBAL_VARIABLES = dict(model = None, tokenizer = None)
 
 def get_contextual_dim(model_name):
     assert model_name in MODELS
     return MODELS[model_name]['dim']
 
+@run_once
 def init_transformer(model_name):
     path = MODELS[model_name]['path']
     GLOBAL_VARIABLES['tokenizer'] = AutoTokenizer.from_pretrained(path)
     GLOBAL_VARIABLES['model'] = AutoModelForMaskedLM.from_pretrained(path)
-    GLOBAL_VARIABLES['initted'] = True
 
 @torch.no_grad()
 def tokenize_text(
@@ -32,8 +32,7 @@ def tokenize_text(
     hidden_state_index = -1,
     return_cls_token = True
 ):
-    if not GLOBAL_VARIABLES['initted']:
-        init_transformer(model_name)
+    init_transformer(model_name)
 
     model = GLOBAL_VARIABLES['model']
     tokenizer = GLOBAL_VARIABLES['tokenizer']

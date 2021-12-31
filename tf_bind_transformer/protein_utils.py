@@ -1,9 +1,9 @@
 import torch
 import esm
 from torch.nn.utils.rnn import pad_sequence
-from tf_bind_transformer.cache_utils import cache_fn
+from tf_bind_transformer.cache_utils import cache_fn, run_once
 
-GLOBAL_VARIABLES = dict(initted = False, model = None)
+GLOBAL_VARIABLES = dict(model = None)
 
 INT_TO_AA_STR_MAP = {
     0: 'A',
@@ -36,11 +36,11 @@ def tensor_to_aa_str(t):
         str_seqs.append(''.join(str_seq))
     return str_seqs
 
+@run_once
 def init_esm():
     model, alphabet = esm.pretrained.esm1b_t33_650M_UR50S()
     batch_converter = alphabet.get_batch_converter()
     GLOBAL_VARIABLES['model'] = (model, batch_converter)
-    GLOBAL_VARIABLES['initted'] = True
 
 def get_single_esm_repr(
     protein_str,
@@ -61,8 +61,7 @@ def get_esm_repr(
     proteins,
     device
 ):
-    if not GLOBAL_VARIABLES['initted']:
-        init_esm()
+    init_esm()
 
     model = GLOBAL_VARIABLES['model']
 
