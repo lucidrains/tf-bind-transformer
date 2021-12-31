@@ -182,11 +182,11 @@ $ CLEAR_CACHE=1 python train.py
 - [x] HF transformers integration for conditioning on free text
 - [x] allow for fine-tuning layernorms of Enformer easily
 - [x] add caching for external embeddings
+- [x] figure out a way for external models (ESM, transformers) to be omitted from state dictionary on saving (use singletons)
 - [ ] normalization of interactions between genetic and amino acid sequence
 - [ ] take care of caching genetic sequences when enformer is frozen
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
 - [ ] support for custom transformers other than enformer
-- [ ] figure out a way for external models (ESM, transformers) to be omitted from state dictionary on saving (use singletons)
 - [ ] offer a fully transformer variant with cross-attention with shared attention matrix and FiLM conditioning with contextual embed
 - [ ] use checkpointing when fine-tuning enformer
 
