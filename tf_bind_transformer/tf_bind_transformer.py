@@ -82,7 +82,6 @@ class Model(nn.Module):
         self.use_esm_embeds = use_esm_embeds
 
         if use_esm_embeds:
-            self.esm = init_esm()
             aa_embed_dim = 1280
         else:
             assert exists(aa_embed_dim), 'AA embedding dimensions must be set if not using ESM'
@@ -149,7 +148,7 @@ class Model(nn.Module):
 
         if self.use_esm_embeds:
             assert exists(aa), 'aa must be passed in as tensor of integers from 0 - 20 (20 being padding)'
-            aa_embed, aa_mask = get_esm_repr(aa, *self.esm, device = seq.device)
+            aa_embed, aa_mask = get_esm_repr(aa, device = seq.device)
         else:
             assert exists(aa_embed), 'protein embeddings must be given as aa_embed'
 

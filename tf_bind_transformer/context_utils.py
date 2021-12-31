@@ -12,9 +12,17 @@ MODELS = dict(
     )
 )
 
+GLOBAL_VARIABLES = dict(initted = False, model = None, tokenizer = None)
+
 def get_contextual_dim(model_name):
     assert model_name in MODELS
     return MODELS[model_name]['dim']
+
+def init_transformer(model_name):
+    path = MODELS[model_name]['path']
+    GLOBAL_VARIABLES['tokenizer'] = AutoTokenizer.from_pretrained(path)
+    GLOBAL_VARIABLES['model'] = AutoModelForMaskedLM.from_pretrained(path)
+    GLOBAL_VARIABLES['initted'] = True
 
 @torch.no_grad()
 def tokenize_text(
@@ -24,9 +32,11 @@ def tokenize_text(
     hidden_state_index = -1,
     return_cls_token = True
 ):
-    path = MODELS[model_name]['path']
-    tokenizer = AutoTokenizer.from_pretrained(path)
-    model = AutoModelForMaskedLM.from_pretrained(path)
+    if not GLOBAL_VARIABLES['initted']:
+        init_transformer(model_name)
+
+    model = GLOBAL_VARIABLES['model']
+    tokenizer = GLOBAL_VARIABLES['tokenizer']
 
     encoding = tokenizer.batch_encode_plus(
         [text],
