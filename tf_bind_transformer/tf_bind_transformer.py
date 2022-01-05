@@ -105,12 +105,37 @@ class FiLM(nn.Module):
         self.to_gamma = nn.Linear(dim, conditioned_dim)
         self.to_bias = nn.Linear(dim, conditioned_dim)
 
-    def forward(self, x, condition):
+    def forward(self, x, condition, mask = None):
         gamma = self.to_gamma(condition)
         bias = self.to_bias(condition)
 
         x = x * rearrange(gamma, 'b d -> b 1 d')
         x = x + rearrange(bias, 'b d -> b 1 d')
+        return x
+
+class SqueezeExcitation(nn.Module):
+    def __init__(
+        self,
+        dim,
+        conditioned_dim,
+        eps = 1e-8
+    ):
+        super().__init__()
+        self.eps = eps
+        self.to_gate = nn.Linear(dim + conditioned_dim, conditioned_dim)
+
+    def forward(self, x, condition, mask = None):
+        if exists(mask):
+            numer = x.masked_fill(mask[..., None], 0.).sum(dim = 1)
+            denom = mask.sum(dim = 1)[..., None].clamp(min = self.eps)
+            mean_x = numer / denom
+        else:
+            mean_x = x.mean(dim = 1)
+
+        condition = torch.cat((condition, mean_x), dim = -1)
+        gate = self.to_gate(condition)
+
+        x = x * rearrange(gate, 'b d -> b 1 d').sigmoid()
         return x
 
 class AdapterModel(nn.Module):
@@ -305,7 +330,8 @@ class AttentionAdapterModel(nn.Module):
         use_free_text_context = False,
         free_text_context_encoder = 'pubmed',
         free_text_embed_method = 'cls',
-        dropout = 0.
+        dropout = 0.,
+        use_squeeze_excite = False
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
@@ -330,9 +356,11 @@ class AttentionAdapterModel(nn.Module):
 
         # film
 
-        self.film_genetic  = FiLM(contextual_embed_dim, enformer_dim)
-        self.film_genetic2 = FiLM(contextual_embed_dim, enformer_dim)
-        self.film_protein  = FiLM(contextual_embed_dim, aa_embed_dim)
+        condition_klass = SqueezeExcitation if use_squeeze_excite else FiLM
+
+        self.cond_genetic  = condition_klass(contextual_embed_dim, enformer_dim)
+        self.cond_genetic2 = condition_klass(contextual_embed_dim, enformer_dim)
+        self.cond_protein  = condition_klass(contextual_embed_dim, aa_embed_dim)
 
         # cross attention
 
@@ -422,8 +450,8 @@ class AttentionAdapterModel(nn.Module):
 
         # film condition both genetic and protein sequences
 
-        seq_embed = self.film_genetic(seq_embed, contextual_embed)
-        aa_embed = self.film_protein(aa_embed, contextual_embed)
+        seq_embed = self.cond_genetic(seq_embed, contextual_embed)
+        aa_embed = self.cond_protein(aa_embed, contextual_embed, mask = aa_mask)
 
         # cross attention
 
@@ -447,7 +475,7 @@ class AttentionAdapterModel(nn.Module):
 
         # condition one more time
 
-        seq_embed = self.film_genetic2(seq_embed, contextual_embed)
+        seq_embed = self.cond_genetic2(seq_embed, contextual_embed)
 
         # feedforward
 
