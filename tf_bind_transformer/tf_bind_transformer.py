@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch import nn, einsum
 from functools import wraps
 
-from einops import rearrange, reduce
+from einops import rearrange, reduce, repeat
 from einops.layers.torch import Rearrange
 
 from contextlib import contextmanager
@@ -447,6 +447,14 @@ class AttentionAdapterModel(nn.Module):
                 return_cls_token = (self.free_text_embed_method == 'cls'),
                 device = seq.device
             )
+
+        # in the case that a single genetic sequence was given, but needs to interact with multiple contexts
+
+        num_seq = seq_embed.shape[0]
+        num_contexts = aa_embed.shape[0]
+
+        if num_seq == 1:
+            seq_embed = repeat(seq_embed, '1 n d -> b n d', b = num_contexts)
 
         # film condition both genetic and protein sequences
 
