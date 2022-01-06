@@ -185,11 +185,11 @@ $ CLEAR_CACHE=1 python train.py
 - [x] figure out a way for external models (ESM, transformers) to be omitted from state dictionary on saving (use singletons)
 - [x] take care of caching genetic sequences when enformer is frozen
 - [x] offer a fully transformer variant with cross-attention with shared attention matrix and FiLM conditioning with contextual embed
-- [ ] also offer using pooled genetic / protein sequence concatted with context -> project -> squeeze excitation type conditioning
+- [x] also offer using pooled genetic / protein sequence concatted with context -> project -> squeeze excitation type conditioning
+- [x] use checkpointing when fine-tuning enformer
 - [ ] normalization of interactions between genetic and amino acid sequence
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
 - [ ] support for custom transformers other than enformer
-- [ ] use checkpointing when fine-tuning enformer
 
 ## Appreciation
 
