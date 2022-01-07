@@ -21,6 +21,7 @@ setup(
     'einops>=0.3',
     'enformer-pytorch>=0.1.19',
     'fair-esm',
+    'pandas',
     'torch>=1.6',
     'transformers>=4.0'
   ],
