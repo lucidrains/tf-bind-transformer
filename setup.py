@@ -18,6 +18,7 @@ setup(
     'gene expression'
   ],
   install_requires=[
+    'biopython',
     'einops>=0.3',
     'enformer-pytorch>=0.1.19',
     'fair-esm',

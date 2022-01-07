@@ -160,6 +160,20 @@ loss = model(
 loss.backward()
 ```
 
+## Data
+
+Transcription factor dataset
+
+```python
+from tf_bind_transformer.data import FactorProteinDataset
+
+ds = FactorProteinDataset(
+    folder = 'path/to/tfactor/fastas'
+)
+
+ds['ETV1'] # MDGFYDQQVPYMVTNSQRGRNCNEKPTNVRKRKFINRDLAHDSEELFQDLSQLQETWLAEAQVPDNDEQFVPDYQAESLAFHGLPLKIKKEPHSPCSEISSACSQEQPFKFSYGEKCLYNVSA
+```
+
 ## Caching
 
 During training, protein sequences and contextual strings are cached to `~/.cache.tf.bind.transformer` directory. If you would like to make sure the caching is working, you just need to run your training script with `VERBOSE=1`
