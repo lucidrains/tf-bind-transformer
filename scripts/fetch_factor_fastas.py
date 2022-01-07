@@ -1,6 +1,3 @@
-import urllib
-import urllib.parse
-from urllib.request import urlopen
 import requests
 from pathlib import Path
 import pandas as pd
@@ -9,8 +6,6 @@ UNIPROT_URL = 'http://www.uniprot.org'
 REMAP_BED_PATH = './remap2022_crm_macs2_hg38_v1_0.bed'
 
 def uniprot_mapping(fromtype, totype, identifier):
-    tool = 'mapping'
-
     params = {
         'from': fromtype,
         'to': totype,
@@ -18,9 +13,8 @@ def uniprot_mapping(fromtype, totype, identifier):
         'query': identifier,
     }
 
-    data = urllib.parse.urlencode(params)
-    response = urlopen(f'{UNIPROT_URL}/{tool}?{data}')
-    return response.read().decode('utf-8')
+    response = requests.get(f'{UNIPROT_URL}/mapping', params = params)
+    return response.text
 
 # load bed file and get all unique targets from column 3
 
