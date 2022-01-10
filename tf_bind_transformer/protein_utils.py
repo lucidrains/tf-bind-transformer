@@ -64,7 +64,12 @@ def get_esm_repr(proteins, device):
 
     get_protein_repr_fn = cache_fn(get_single_esm_repr, path = 'esm/proteins')
 
-    representations = [get_protein_repr_fn(protein) for protein in proteins]
+    representations = []
+    for subunits in proteins:
+        subunits = (subunits,) if not isinstance(subunits, tuple) else subunits
+        subunits_representations = list(map(get_protein_repr_fn, subunits))
+        subunits_representations = torch.cat(subunits_representations, dim = 0)
+        representations.append(subunits_representations)
 
     lengths = [seq_repr.shape[0] for seq_repr in representations]
     masks = torch.arange(max(lengths), device = device)[None, :] <  torch.tensor(lengths, device = device)[:, None]

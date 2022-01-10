@@ -139,8 +139,8 @@ seq = torch.randint(0, 4, (2, 196_608 // 2)).cuda() # for ACGT
 target = torch.randn(2, 256).cuda()
 
 tf_aa = [
-    'KVFGRCELAA',
-    'AMKRHGLDNY'
+    'KVFGRCELAA',                  # single protein
+    ('AMKRHGLDNY', 'YNDLGHRKMA')   # complex, representations will be concatted together
 ]
 
 contextual_texts = [
