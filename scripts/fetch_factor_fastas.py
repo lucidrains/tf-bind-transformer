@@ -1,6 +1,7 @@
 import requests
 from pathlib import Path
 import pandas as pd
+from tf_bind_transformer.protein_utils import parse_gene_name
 
 UNIPROT_URL = 'http://www.uniprot.org'
 REMAP_BED_PATH = './remap2022_crm_macs2_hg38_v1_0.bed'
@@ -9,32 +10,6 @@ GENE_NAME_TO_ID_OVERRIDE = {
     'SS18-SSX': ['Q8IZH1'],
     'TFIIIC': ['A6ZV34']        # todo: figure out where the human entry is in Uniprot
 }
-
-GENE_IDENTIFIER_MAP = {
-    'RXR': 'RXRA'
-}
-
-NAMES_WITH_HYPHENS = {
-    'NKX3-1',
-    'NKX2-1',
-    'NKX2-5',
-    'SS18-SSX'
-}
-
-def parse_gene_name(name):
-    if '-' not in name or name in NAMES_WITH_HYPHENS:
-        return (name,)
-
-    first, *rest = name.split('-')
-
-    parsed_rest = []
-
-    for name in rest:
-        if len(name) == 1:
-            name = f'{first[:-1]}{name}'
-        parsed_rest.append(name)
-
-    return tuple([first, *parsed_rest])
 
 def uniprot_mapping(fromtype, totype, identifier):
     params = {
@@ -66,8 +41,6 @@ if __name__ == '__main__':
 
         for gene_name in parse_gene_name(unparsed_gene_name):
             # fetch uniprot id based on gene id
-
-            gene_name = GENE_IDENTIFIER_MAP.get(gene_name, gene_name)
 
             if gene_name not in GENE_NAME_TO_ID_OVERRIDE:
                 uniprot_resp = uniprot_mapping('GENENAME', 'ID', gene_name)

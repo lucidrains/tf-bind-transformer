@@ -171,7 +171,14 @@ ds = FactorProteinDataset(
     folder = 'path/to/tfactor/fastas'
 )
 
-ds['ETV1'] # MDGFYDQQVPYMVTNSQRGRNCNEKPTNVRKRKFINRDLAHDSEELFQDLSQLQETWLAEAQVPDNDEQFVPDYQAESLAFHGLPLKIKKEPHSPCSEISSACSQEQPFKFSYGEKCLYNVSA
+# single factor
+
+ds['ETV1'] # <seq>
+
+# multi-complexes
+
+ds['PAX3-FOXO1'] # (<seq1>, <seq2>)
+
 ```
 
 ## Caching
