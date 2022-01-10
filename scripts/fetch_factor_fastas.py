@@ -5,14 +5,19 @@ import pandas as pd
 UNIPROT_URL = 'http://www.uniprot.org'
 REMAP_BED_PATH = './remap2022_crm_macs2_hg38_v1_0.bed'
 
-GENE_IDENTIFIER_MAP = dict(
-    RXR = 'RXRA'
-)
+GENE_NAME_TO_ID_OVERRIDE = {
+    'SS18-SSX': ['Q8IZH1']
+}
+
+GENE_IDENTIFIER_MAP = {
+    'RXR': 'RXRA'
+}
 
 NAMES_WITH_HYPHENS = {
     'NKX3-1',
     'NKX2-1',
-    'NKX2-5'
+    'NKX2-5',
+    'SS18-SSX'
 }
 
 def parse_gene_name(name):
@@ -62,12 +67,16 @@ if __name__ == '__main__':
             # fetch uniprot id based on gene id
 
             gene_name = GENE_IDENTIFIER_MAP.get(gene_name, gene_name)
-            uniprot_resp = uniprot_mapping('GENENAME', 'ID', gene_name)
 
-            # only get the human ones (todo: make species agnostic)
+            if gene_name not in GENE_NAME_TO_ID_OVERRIDE:
+                uniprot_resp = uniprot_mapping('GENENAME', 'ID', gene_name)
 
-            entries = list(filter(lambda t: '_HUMAN' in t, uniprot_resp.split('\n')))
-            entries = list(map(lambda t: t.split('\t')[1], entries))
+                # only get the human ones (todo: make species agnostic)
+
+                entries = list(filter(lambda t: '_HUMAN' in t, uniprot_resp.split('\n')))
+                entries = list(map(lambda t: t.split('\t')[1], entries))
+            else:
+                entries = GENE_NAME_TO_ID_OVERRIDE[gene_name]
 
             if len(entries) == 0:
                 print(f'no entries found for {gene_name}')
