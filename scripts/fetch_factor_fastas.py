@@ -6,7 +6,8 @@ UNIPROT_URL = 'http://www.uniprot.org'
 REMAP_BED_PATH = './remap2022_crm_macs2_hg38_v1_0.bed'
 
 GENE_NAME_TO_ID_OVERRIDE = {
-    'SS18-SSX': ['Q8IZH1']
+    'SS18-SSX': ['Q8IZH1'],
+    'TFIIIC': ['A6ZV34']        # todo: figure out where the human entry is in Uniprot
 }
 
 GENE_IDENTIFIER_MAP = {
