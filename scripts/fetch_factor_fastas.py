@@ -9,8 +9,14 @@ GENE_IDENTIFIER_MAP = dict(
     RXR = 'RXRA'
 )
 
+NAMES_WITH_HYPHENS = {
+    'NKX3-1',
+    'NKX2-1',
+    'NKX2-5'
+}
+
 def parse_gene_name(name):
-    if '-' not in name:
+    if '-' not in name or name in NAMES_WITH_HYPHENS:
         return (name,)
 
     first, *rest = name.split('-')
