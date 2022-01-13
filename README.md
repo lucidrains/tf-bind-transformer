@@ -160,6 +160,63 @@ loss = model(
 loss.backward()
 ```
 
+## Binary prediction
+
+For predicting binary outcome (bind or not bind), just set the `binary_targets = True` when initializing either adapters
+
+ex.
+
+```python
+import torch
+from tf_bind_transformer import AttentionAdapterModel
+from enformer_pytorch import Enformer
+
+# instantiate enformer or load pretrained
+
+enformer = Enformer(
+    dim = 1536,
+    depth = 2,
+    target_length = 256
+)
+
+# instantiate model wrapper that takes in enformer
+
+model = AttentionAdapterModel(
+    enformer = enformer,
+    use_esm_embeds = True,
+    use_free_text_context = True,
+    free_text_embed_method = 'mean_pool',
+    use_squeeze_excite = True,
+    binary_target = True                   # set this to True
+).cuda()
+
+# mock data
+
+seq = torch.randint(0, 4, (1, 196_608 // 2)).cuda() # for ACGT
+binary_target = torch.randint(0, 2, (2,)).cuda()    # bind or not bind
+
+tf_aa = [
+    'KVFGRCELAA',
+    ('AMKRHGLDNY', 'YNDLGHRKMA')
+]
+
+contextual_texts = [
+    'cell type: GM12878 | chip-seq dual cross-linked',
+    'cell type: H1-hESC | chip-seq single cross-linked'
+]
+
+# train
+
+loss = model(
+    seq,
+    target = binary_target,
+    aa = tf_aa,
+    contextual_free_text = contextual_texts,
+)
+
+loss.backward()
+```
+
 ## Data
 
 Transcription factor dataset

@@ -5,7 +5,7 @@ from torch import nn, einsum
 from functools import wraps
 
 from einops import rearrange, reduce, repeat
-from einops.layers.torch import Rearrange
+from einops.layers.torch import Rearrange, Reduce
 
 from contextlib import contextmanager
 from enformer_pytorch import Enformer
@@ -190,11 +190,23 @@ class AdapterModel(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
 
-        self.to_pred = nn.Sequential(
-            nn.Linear(latent_heads, 1),
-            Rearrange('... 1 -> ...'),
-            nn.Softplus()
-        )
+        # to prediction
+
+        self.binary_target = binary_target
+
+        if binary_target:
+            self.to_pred = nn.Sequential(
+                Reduce('... n d -> ... d', 'mean'),
+                nn.LayerNorm(latent_heads),
+                nn.Linear(latent_heads, 1),
+                Rearrange('... 1 -> ...')
+            )
+        else:
+            self.to_pred = nn.Sequential(
+                nn.Linear(latent_heads, 1),
+                Rearrange('... 1 -> ...'),
+                nn.Softplus()
+            )
 
     def forward(
         self,
@@ -308,10 +320,14 @@ class AdapterModel(nn.Module):
         pred = self.to_pred(logits)
 
         if exists(target):
-            if return_corr_coef:
-                return pearson_corr_coef(pred, target)
+            if self.binary_target:
+                return F.binary_cross_entropy_with_logits(pred, target.float())
 
-            return poisson_loss(pred, target)
+            else:
+                if return_corr_coef:
+                    return pearson_corr_coef(pred, target)
+
+                return poisson_loss(pred, target)
 
         return pred
 
@@ -331,7 +347,8 @@ class AttentionAdapterModel(nn.Module):
         free_text_context_encoder = 'pubmed',
         free_text_embed_method = 'cls',
         dropout = 0.,
-        use_squeeze_excite = False
+        use_squeeze_excite = False,
+        binary_target = False
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
@@ -384,11 +401,21 @@ class AttentionAdapterModel(nn.Module):
 
         # to predictions
 
-        self.to_pred = nn.Sequential(
-            nn.Linear(enformer_dim, 1),
-            Rearrange('... 1 -> ...'),
-            nn.Softplus()
-        )
+        self.binary_target = binary_target
+
+        if binary_target:
+            self.to_pred = nn.Sequential(
+                Reduce('... n d -> ... d', 'mean'),
+                nn.LayerNorm(enformer_dim),
+                nn.Linear(enformer_dim, 1),
+                Rearrange('... 1 -> ...')
+            )
+        else:
+            self.to_pred = nn.Sequential(
+                nn.Linear(enformer_dim, 1),
+                Rearrange('... 1 -> ...'),
+                nn.Softplus()
+            )
 
     def forward(
         self,
@@ -494,9 +521,14 @@ class AttentionAdapterModel(nn.Module):
         pred = self.to_pred(logits)
 
         if exists(target):
-            if return_corr_coef:
-                return pearson_corr_coef(pred, target)
+            if self.binary_target:
+                return F.binary_cross_entropy_with_logits(pred, target.float())
+            else:
+                if return_corr_coef:
+                    return pearson_corr_coef(pred, target)
 
-            return poisson_loss(pred, target)
+                return poisson_loss(pred, target)
+
+        # return prediction if not auto-calculating loss
 
         return pred
