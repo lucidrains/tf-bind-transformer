@@ -1,6 +1,6 @@
 import requests
 from pathlib import Path
-import pandas as pd
+import polars as pl
 from tf_bind_transformer.protein_utils import parse_gene_name
 
 UNIPROT_URL = 'http://www.uniprot.org'
@@ -25,8 +25,8 @@ def uniprot_mapping(fromtype, totype, identifier):
 if __name__ == '__main__':
     # load bed file and get all unique targets from column 3
 
-    df = pd.read_csv(REMAP_BED_PATH, sep = '\t', header = None)
-    genes = set([target for targets in df[3] for target in targets.split(',')])
+    df = pl.read_csv(REMAP_BED_PATH, sep = '\t', has_headers = False)
+    genes = set([target for targets in df[:, 3] for target in targets.split(',')])
 
     print(f'{len(genes)} factors found')
 
