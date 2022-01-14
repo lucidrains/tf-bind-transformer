@@ -217,6 +217,64 @@ loss = model(
 loss.backward()
 ```
 
+## Using Remap Dataset (wip)
+
+For starters, the `RemapAllPeakDataset` will allow you to load data easily from the full remap peaks bed file for training.
+
+ex. one gradient step
+
+```python
+import torch
+from tf_bind_transformer import AttentionAdapterModel
+from tf_bind_transformer.data import RemapAllPeakDataset, get_dataloader
+
+ds = RemapAllPeakDataset(
+    bed_file = 'remap2022_all.bed',            # path to remap bed file
+    fasta_file = './hg38.ml.fa',               # fasta file (human)
+    factor_fasta_folder = './tfactor.fastas',  # path to downloaded tfactors fastas
+    context_length = 4096                      # context length to be fetched
+)
+
+dl = iter(get_dataloader(ds, batch_size = 2))
+
+# instantiate enformer or load pretrained
+
+from enformer_pytorch import Enformer
+enformer = Enformer(
+    dim = 1536,
+    depth = 2,
+    target_length = -1                         # no trimming needed, shorter context length as example
+)
+
+# instantiate model wrapper that takes in enformer
+
+model = AttentionAdapterModel(
+    enformer = enformer,
+    use_esm_embeds = True,
+    use_free_text_context = True,
+    free_text_embed_method = 'mean_pool',
+    binary_target = True,                      # binary targets
+    use_squeeze_excite = True
+).cuda()
+
+# data
+
+seq, tf_aa, contextual_texts, _, binary_target = next(dl)
+seq, binary_target = seq.cuda(), binary_target.cuda()
+
+# train
+
+loss = model(
+    seq,
+    target = binary_target,
+    aa = tf_aa,
+    contextual_free_text = contextual_texts,
+)
+
+loss.backward()
+
+```
+
 ## Data
 
 Transcription factor dataset
@@ -268,6 +326,7 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] normalization of interactions between genetic and amino acid sequence
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
 - [ ] support for custom transformers other than enformer
+- [ ] take care of prepping dataframe with proper chromosome and training / validation split
 
 ## Appreciation
 

@@ -74,3 +74,47 @@ class FactorProteinDataset(Dataset):
             return seqs[0]
 
         return seqs
+
+# dataset for remap data - all peaks
+
+import torch
+from torch.utils.data import DataLoader
+import polars as pl
+from enformer_pytorch import FastaInterval
+
+class RemapAllPeakDataset(Dataset):
+    def __init__(
+        self,
+        *,
+        bed_file,
+        factor_fasta_folder,
+        **kwargs
+    ):
+        super().__init__()
+        self.df = pl.read_csv(bed_file, sep = '\t', has_headers = False)
+        self.factor_ds = FactorProteinDataset(factor_fasta_folder)
+        self.fasta = FastaInterval(**kwargs)
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, ind):
+        chr_name, begin, end, experiment_target_cell_type, reading, *_ = self.df.row(ind)
+        experiment, target, cell_type = experiment_target_cell_type.split('.')
+
+        seq = self.fasta(chr_name, begin, end)
+        aa_seq = self.factor_ds[target]
+        context_str = f'{cell_type} | {experiment}'
+
+        value = torch.Tensor([reading])
+        label = torch.Tensor([1.])
+
+        return seq, aa_seq, context_str, value, label
+
+def collate_fn(data):
+    seq, aa_seq, context_str, values, labels = list(zip(*data))
+    return torch.stack(seq), tuple(aa_seq), tuple(context_str), torch.stack(values, dim = 0), torch.cat(labels, dim = 0)
+
+def get_dataloader(ds, **kwargs):
+    dl = DataLoader(ds, collate_fn = collate_fn, **kwargs)
+    return dl

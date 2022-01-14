@@ -20,7 +20,7 @@ setup(
   install_requires=[
     'biopython',
     'einops>=0.3',
-    'enformer-pytorch>=0.1.19',
+    'enformer-pytorch>=0.2.12',
     'fair-esm',
     'polars',
     'torch>=1.6',
