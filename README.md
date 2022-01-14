@@ -225,6 +225,7 @@ ex. one gradient step
 
 ```python
 import torch
+from enformer_pytorch import load_pretrained_model
 from tf_bind_transformer import AttentionAdapterModel
 
 from tf_bind_transformer.training_utils import get_optimizer
@@ -241,12 +242,7 @@ dl = iter(get_dataloader(ds, batch_size = 2))
 
 # instantiate enformer or load pretrained
 
-from enformer_pytorch import Enformer
-enformer = Enformer(
-    dim = 1536,
-    depth = 2,
-    target_length = -1                         # no trimming needed, shorter context length as example
-)
+enformer = load_pretrained_model('preview', target_length = -1)
 
 # instantiate model wrapper that takes in enformer
 
