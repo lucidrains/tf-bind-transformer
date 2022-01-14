@@ -151,7 +151,9 @@ class AdapterModel(nn.Module):
         use_free_text_context = False,
         free_text_context_encoder = 'pubmed',
         free_text_embed_method = 'cls',
-        dropout = 0.
+        dropout = 0.,
+        binary_target = False,
+        target_mse_loss = False
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
@@ -195,6 +197,8 @@ class AdapterModel(nn.Module):
         self.binary_target = binary_target
 
         if binary_target:
+            self.loss_fn = F.binary_cross_entropy_with_logits if not target_mse_loss else F.mse_loss
+
             self.to_pred = nn.Sequential(
                 Reduce('... n d -> ... d', 'mean'),
                 nn.LayerNorm(latent_heads),
@@ -321,7 +325,7 @@ class AdapterModel(nn.Module):
 
         if exists(target):
             if self.binary_target:
-                return F.binary_cross_entropy_with_logits(pred, target.float())
+                return self.loss_fn(pred, target.float())
 
             else:
                 if return_corr_coef:
@@ -348,7 +352,8 @@ class AttentionAdapterModel(nn.Module):
         free_text_embed_method = 'cls',
         dropout = 0.,
         use_squeeze_excite = False,
-        binary_target = False
+        binary_target = False,
+        target_mse_loss = False
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
@@ -404,6 +409,8 @@ class AttentionAdapterModel(nn.Module):
         self.binary_target = binary_target
 
         if binary_target:
+            self.loss_fn = F.binary_cross_entropy_with_logits if not target_mse_loss else F.mse_loss
+
             self.to_pred = nn.Sequential(
                 Reduce('... n d -> ... d', 'mean'),
                 nn.LayerNorm(enformer_dim),
@@ -522,7 +529,7 @@ class AttentionAdapterModel(nn.Module):
 
         if exists(target):
             if self.binary_target:
-                return F.binary_cross_entropy_with_logits(pred, target.float())
+                return self.loss_fn(pred, target.float())
             else:
                 if return_corr_coef:
                     return pearson_corr_coef(pred, target)

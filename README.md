@@ -187,7 +187,8 @@ model = AttentionAdapterModel(
     use_free_text_context = True,
     free_text_embed_method = 'mean_pool',
     use_squeeze_excite = True,
-    binary_target = True                   # set this to True
+    binary_target = True,                  # set this to True
+    target_mse_loss = False                # whether to use MSE loss with target value
 ).cuda()
 
 # mock data
