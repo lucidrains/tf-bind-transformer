@@ -334,6 +334,7 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
 - [ ] support for custom transformers other than enformer
 - [ ] take care of prepping dataframe with proper chromosome and training / validation split
+- [ ] add a safe initialization whereby rows of dataframe with targets not found in the tfactor fasta folder will be filtered out
 
 ## Appreciation
 
