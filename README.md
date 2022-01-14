@@ -226,6 +226,8 @@ ex. one gradient step
 ```python
 import torch
 from tf_bind_transformer import AttentionAdapterModel
+
+from tf_bind_transformer.training_utils import get_optimizer
 from tf_bind_transformer.data import RemapAllPeakDataset, get_dataloader
 
 ds = RemapAllPeakDataset(
@@ -257,6 +259,8 @@ model = AttentionAdapterModel(
     use_squeeze_excite = True
 ).cuda()
 
+optim = get_optimizer(model.parameters(), lr = 1e-4)
+
 # data
 
 seq, tf_aa, contextual_texts, _, binary_target = next(dl)
@@ -269,9 +273,12 @@ loss = model(
     target = binary_target,
     aa = tf_aa,
     contextual_free_text = contextual_texts,
+    finetune_enformer_ln_only = True
 )
 
 loss.backward()
+optim.step()
+optim.zero_grad()
 
 ```
 
