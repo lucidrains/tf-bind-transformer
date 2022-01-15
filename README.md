@@ -396,3 +396,15 @@ This work is generously sponsored by <a href="https://github.com/jeffhsu3">Jeff 
     primaryClass = {cs.LG}
 }
 ```
+
+```bibtex
+@article{10.1093/nar/gkab996,
+    author  = {Hammal, Fayrouz and de Langen, Pierre and Bergon, Aurélie and Lopez, Fabrice and Ballester, Benoit},
+    title   = "{ReMap 2022: a database of Human, Mouse, Drosophila and Arabidopsis regulatory regions from an integrative analysis of DNA-binding sequencing experiments}",
+    journal = {Nucleic Acids Research},
+    issn    = {0305-1048},
+    doi     = {10.1093/nar/gkab996},
+    url     = {https://doi.org/10.1093/nar/gkab996},
+    eprint  = {https://academic.oup.com/nar/article-pdf/50/D1/D316/42058627/gkab996.pdf},
+}
+```
