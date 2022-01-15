@@ -233,13 +233,23 @@ from tf_bind_transformer.training_utils import get_optimizer
 from tf_bind_transformer.data import RemapAllPeakDataset, get_dataloader
 
 ds = RemapAllPeakDataset(
-    bed_file = 'remap2022_all.bed',            # path to remap bed file
-    fasta_file = './hg38.ml.fa',               # fasta file (human)
-    factor_fasta_folder = './tfactor.fastas',  # path to downloaded tfactors fastas
-    context_length = 4096                      # context length to be fetched
+    bed_file = 'remap2022_all.bed',                  # path to remap bed file
+    fasta_file = './hg38.ml.fa',                     # fasta file (human)
+    factor_fasta_folder = './tfactor.fastas',        # path to downloaded tfactors fastas
+    filter_chromosome_ids = [*range(2, 24, 2), 'X'], # even chromosomes for 
+    context_length = 4096                            # context length to be fetched
+)
+
+valid_ds = RemapAllPeakDataset(
+    bed_file = './remap2022_all.bed',
+    fasta_file = './hg38.ml.fa',
+    factor_fasta_folder = './tfactor.fastas',
+    filter_chromosome_ids = [*range(1, 23, 2), 'Y'], # odd chromosomes for validation
+    context_length = 4096
 )
 
 dl = iter(get_dataloader(ds, batch_size = 2))
+valid_dl = iter(get_dataloader(valid_ds, batch_size = 2))
 
 # instantiate enformer or load pretrained
 

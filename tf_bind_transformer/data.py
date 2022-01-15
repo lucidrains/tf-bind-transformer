@@ -1,9 +1,19 @@
 from Bio import SeqIO
 from random import choice
 from pathlib import Path
+import functools
+import polars as pl
 from collections import defaultdict
+
+import torch
+from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
+
 from tf_bind_transformer.protein_utils import parse_gene_name
+from enformer_pytorch import FastaInterval
+
+def exists(val):
+    return val is not None
 
 # fetch protein sequences by gene name and uniprot id
 
@@ -75,12 +85,31 @@ class FactorProteinDataset(Dataset):
 
         return seqs
 
-# dataset for remap data - all peaks
+# remap dataframe functions
 
-import torch
-from torch.utils.data import DataLoader
-import polars as pl
-from enformer_pytorch import FastaInterval
+CHR_IDS = set([*range(1, 23), 'X', 'Y'])
+
+def get_chr_names(ids):
+    return set(map(lambda t: f'chr{t}', ids))
+
+def remap_df_add_experiment_target_cell_(df, col = 'column_4'):
+    exp_id = df.select([pl.col(col).str.extract(r"(\w+)\.[\w+]\.[\w+]")])
+    targets = df.select([pl.col(col).str.extract(r"[\w+]\.(\w+)\.[\w+]")])
+    cell_type = df.select([pl.col(col).str.extract(r"[\w+]\.[\w+]\.(\w+)")])
+
+    exp_id = exp_id.rename({col: 'experiment'}).to_series(0)
+    targets = targets.rename({col: 'target'}).to_series(0)
+    cell_type = exp_id.rename({col: 'cell_type'}).to_series(0)
+
+    df.insert_at_idx(3, exp_id)
+    df.insert_at_idx(3, targets)
+    df.insert_at_idx(3, exp_id)
+
+def pl_isin(col, arr):
+    equalities = list(map(lambda t: pl.col(col) == t, arr))
+    return functools.reduce(lambda a, b: a | b, equalities)
+
+# dataset for remap data - all peaks
 
 class RemapAllPeakDataset(Dataset):
     def __init__(
@@ -88,10 +117,22 @@ class RemapAllPeakDataset(Dataset):
         *,
         bed_file,
         factor_fasta_folder,
+        filter_chromosome_ids = None,
         **kwargs
     ):
         super().__init__()
-        self.df = pl.read_csv(bed_file, sep = '\t', has_headers = False)
+        df = pl.read_csv(bed_file, sep = '\t', has_headers = False)
+
+        dataset_chr_ids = CHR_IDS
+
+        if exists(filter_chromosome_ids):
+            dataset_chr_ids = dataset_chr_ids.intersection(set(filter_chromosome_ids))
+
+        df = df.filter(pl_isin('column_1', get_chr_names(dataset_chr_ids)))
+
+        assert len(df) > 0, 'dataset is empty by filter criteria'
+
+        self.df = df
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)
         self.fasta = FastaInterval(**kwargs)
 
@@ -110,6 +151,8 @@ class RemapAllPeakDataset(Dataset):
         label = torch.Tensor([1.])
 
         return seq, aa_seq, context_str, value, label
+
+# dataloader related functions
 
 def collate_fn(data):
     seq, aa_seq, context_str, values, labels = list(zip(*data))
