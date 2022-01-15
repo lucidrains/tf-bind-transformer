@@ -24,7 +24,8 @@ setup(
     'fair-esm',
     'polars',
     'torch>=1.6',
-    'transformers>=4.0'
+    'transformers>=4.0',
+    'tqdm'
   ],
   classifiers=[
     'Development Status :: 4 - Beta',

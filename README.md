@@ -10,6 +10,12 @@ Run the following at the project root to download dependencies
 $ python setup.py install --user
 ```
 
+Then you must install `pybedtools`
+
+```bash
+$ conda install --channel conda-forge --channel bioconda pybedtools
+```
+
 ## Usage
 
 ```python
@@ -221,6 +227,23 @@ loss.backward()
 ## Using Remap Dataset (wip)
 
 For starters, the `RemapAllPeakDataset` will allow you to load data easily from the full remap peaks bed file for training.
+
+Firstly you'll need to generate the non-peaks dataset by running the following function
+
+```python
+from tf_bind_transformer.data import generate_random_ranges_from_fasta
+
+generate_random_ranges_from_fasta(
+    './hg38.ml.fa',
+    output_filename = './path/to/generated-non-peaks.bed',    # path to output file
+    context_length = 4096,
+    num_entries_per_key = 1_000_000,                          # number of negative samples
+    filter_bed_files = [
+        './remap_all.bed',                                    # filter out by all peak ranges (todo, allow filtering namespaced to experiment and target)
+        './hg38.blacklist.rep.bed'                            # further filtering by blacklisted regions (gs://basenji_barnyard/hg38.blacklist.rep.bed)
+    ]
+)
+```
 
 ex. one gradient step
 
