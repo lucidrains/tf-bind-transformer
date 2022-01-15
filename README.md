@@ -366,6 +366,7 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
 - [ ] support for custom transformers other than enformer
 - [ ] add a safe initialization whereby rows of dataframe with targets not found in the tfactor fasta folder will be filtered out
+- [ ] derive gender of cell from absence of chrY in dataframe and add to context
 
 ## Appreciation
 
