@@ -422,6 +422,17 @@ This work is generously sponsored by <a href="https://github.com/jeffhsu3">Jeff 
 ```
 
 ```bibtex
+@misc{zhmoginov2022hypertransformer,
+    title   = {HyperTransformer: Model Generation for Supervised and Semi-Supervised Few-Shot Learning},
+    author  = {Andrey Zhmoginov and Mark Sandler and Max Vladymyrov},
+    year    = {2022},
+    eprint  = {2201.04182},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.LG}
+}
+```
+
+```bibtex
 @article{10.1093/nar/gkab996,
     author  = {Hammal, Fayrouz and de Langen, Pierre and Bergon, Aurélie and Lopez, Fabrice and Ballester, Benoit},
     title   = "{ReMap 2022: a database of Human, Mouse, Drosophila and Arabidopsis regulatory regions from an integrative analysis of DNA-binding sequencing experiments}",

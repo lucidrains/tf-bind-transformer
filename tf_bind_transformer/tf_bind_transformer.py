@@ -539,3 +539,229 @@ class AttentionAdapterModel(nn.Module):
         # return prediction if not auto-calculating loss
 
         return pred
+
+# contextual transformer producing weights of convolution on genetic embeddings
+# inspiration from HyperTransformers
+# https://arxiv.org/abs/2201.04182
+
+class HyperTransformerAdapterModel(nn.Module):
+    def __init__(
+        self,
+        *,
+        enformer,
+        aa_embed_dim = None,
+        contextual_embed_dim = 256,
+        self_attn_dim_head = 64,
+        self_attn_heads = 8,
+        hyper_conv_kernel_size = 7,
+        use_esm_embeds = False,
+        use_free_text_context = False,
+        free_text_context_encoder = 'pubmed',
+        free_text_embed_method = 'cls',
+        dropout = 0.,
+        use_squeeze_excite = False,
+        binary_target = False,
+        target_mse_loss = False
+    ):
+        super().__init__()
+        assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
+        self.enformer = enformer
+        enformer_dim = enformer.dim * 2
+
+        # contextual embedding related variables
+
+        assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
+        self.free_text_embed_method = free_text_embed_method
+        self.use_free_text_context = use_free_text_context
+        contextual_embed_dim = get_contextual_dim(free_text_context_encoder)
+
+        # protein embedding related variables
+
+        self.use_esm_embeds = use_esm_embeds
+
+        if use_esm_embeds:
+            aa_embed_dim = ESM_EMBED_DIM
+        else:
+            assert exists(aa_embed_dim), 'AA embedding dimensions must be set if not using ESM'
+
+        # film
+
+        condition_klass = SqueezeExcitation if use_squeeze_excite else FiLM
+
+        self.cond_genetic  = condition_klass(contextual_embed_dim, enformer_dim)
+        self.cond_protein  = condition_klass(contextual_embed_dim, aa_embed_dim)
+
+        # self attention
+
+        self.scale = self_attn_dim_head ** -0.5
+        self.heads = self_attn_heads
+        inner_dim = self_attn_dim_head * self_attn_heads
+
+        assert (hyper_conv_kernel_size % 2) == 1, 'hyper conv kernel size must be odd'
+        self.conv_padding = hyper_conv_kernel_size // 2
+        self.conv_weight_slices_queries = nn.Parameter(torch.randn(hyper_conv_kernel_size, aa_embed_dim))
+
+        self.to_queries = nn.Linear(aa_embed_dim, inner_dim, bias = False)
+        self.to_keys = nn.Linear(aa_embed_dim, inner_dim, bias = False)
+        self.to_values = nn.Linear(aa_embed_dim, inner_dim, bias = False)
+        self.to_out = nn.Linear(inner_dim, aa_embed_dim)
+
+        self.attn_dropout = nn.Dropout(dropout)
+
+        self.feedforward = nn.Sequential(
+            nn.LayerNorm(aa_embed_dim),
+            nn.Linear(aa_embed_dim, aa_embed_dim * 2),
+            nn.GELU(),
+            nn.Linear(aa_embed_dim * 2, aa_embed_dim)
+        )
+
+        self.to_hyper_weights = nn.Sequential(
+            nn.LayerNorm(aa_embed_dim),
+            nn.Linear(aa_embed_dim, enformer_dim)
+        )
+        # to predictions
+
+        self.binary_target = binary_target
+
+        if binary_target:
+            self.loss_fn = F.binary_cross_entropy_with_logits if not target_mse_loss else F.mse_loss
+
+            self.to_pred = nn.Sequential(
+                Reduce('... n d -> ... d', 'mean'),
+                Rearrange('... 1 -> ...')
+            )
+        else:
+            self.to_pred = nn.Sequential(
+                Rearrange('... 1 -> ...'),
+                nn.Softplus()
+            )
+
+    def forward(
+        self,
+        seq,
+        *,
+        aa = None,
+        aa_embed = None,
+        contextual_embed = None,
+        contextual_free_text = None,
+        aa_mask = None,
+        target = None,
+        return_corr_coef = False,
+        finetune_enformer = False,
+        finetune_enformer_ln_only = False
+    ):
+        h = self.heads
+
+        # prepare enformer for training
+        # - set to eval and no_grad if not fine-tuning
+        # - always freeze the batchnorms
+
+        freeze_batchnorms_(self.enformer)
+        enformer_forward = self.enformer.forward
+
+        if finetune_enformer:
+            enformer_context = null_context()
+        elif finetune_enformer_ln_only:
+            enformer_context = null_context()
+            freeze_all_but_layernorms_(self.enformer)
+        else:
+            self.enformer.eval()
+            enformer_context = torch.no_grad()
+            enformer_forward = cache_enformer_forward(enformer_forward)
+
+        # genetic sequence embedding
+
+        with enformer_context:
+            seq_embed = enformer_forward(seq, return_only_embeddings = True)
+
+        # protein related embeddings
+
+        if self.use_esm_embeds:
+            assert exists(aa), 'aa must be passed in as tensor of integers from 0 - 20 (20 being padding)'
+            aa_embed, aa_mask = get_esm_repr(aa, device = seq.device)
+        else:
+            assert exists(aa_embed), 'protein embeddings must be given as aa_embed'
+
+        # free text embeddings, for cell types and experimental params
+
+        if not exists(contextual_embed):
+            assert self.use_free_text_context, 'use_free_text_context must be set to True if one is not passing in contextual_embed tensor'
+            assert exists(contextual_free_text), 'context must be supplied as array of strings as contextual_free_text if contextual_embed is not supplied'
+
+            contextual_embed = get_text_repr(
+                contextual_free_text,
+                return_cls_token = (self.free_text_embed_method == 'cls'),
+                device = seq.device
+            )
+
+        # in the case that a single genetic sequence was given, but needs to interact with multiple contexts
+
+        num_seq = seq_embed.shape[0]
+        num_contexts = aa_embed.shape[0]
+
+        if num_seq == 1:
+            seq_embed = repeat(seq_embed, '1 n d -> b n d', b = num_contexts)
+
+        # film condition both genetic and protein sequences
+
+        seq_embed = self.cond_genetic(seq_embed, contextual_embed)
+        aa_embed = self.cond_protein(aa_embed, contextual_embed, mask = aa_mask)
+
+        # cross attention
+
+        hyper_conv_kernel_size = self.conv_weight_slices_queries.shape[0]
+
+        hyper_weight_queries = repeat(self.conv_weight_slices_queries, 'n d -> b n d', b = aa_embed.shape[0])
+        aa_embed_and_hyper_queries = torch.cat((aa_embed, hyper_weight_queries), dim = 1)
+
+        queries, keys, values = self.to_queries(aa_embed_and_hyper_queries), self.to_keys(aa_embed_and_hyper_queries), self.to_values(aa_embed_and_hyper_queries)
+
+        queries, keys, values = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), (queries, keys, values))
+
+        sim = einsum('b h i d, b h j d -> b h i j', queries, keys) * self.scale
+
+        aa_mask = F.pad(aa_mask, (0, hyper_conv_kernel_size), value = True)
+        aa_mask = rearrange(aa_mask, 'b j -> b 1 1 j')
+
+        sim = sim.masked_fill(~aa_mask, -torch.finfo(sim.dtype).max)
+
+        attn = sim.softmax(dim = -1)
+        attn = self.attn_dropout(attn)
+
+        out = einsum('b h i j, b h j d -> b h i d', attn, values)
+        out = rearrange(out, 'b h n d -> b n (h d)')
+        out = self.to_out(out)
+
+        aa_embed_and_hyper_queries = aa_embed_and_hyper_queries + out
+
+        # feedforward
+
+        aa_embed_and_hyper_queries = self.feedforward(aa_embed_and_hyper_queries) + aa_embed_and_hyper_queries
+
+        hyper_weights = self.to_hyper_weights(aa_embed_and_hyper_queries[:, :hyper_conv_kernel_size])
+        hyper_weights = rearrange(hyper_weights, 'o k i -> o i k')
+
+        seq_embed = rearrange(seq_embed, 'b n d -> b d n')
+        seq_embed = F.pad(seq_embed, (self.conv_padding, self.conv_padding), value = 0.)
+
+        seq_embed = rearrange(seq_embed, 'b n d -> 1 (b n) d')
+        seq_embed_convolved = F.conv1d(seq_embed, hyper_weights, groups = aa_embed.shape[0])
+
+        seq_embed_convolved = rearrange(seq_embed_convolved, '1 b n -> b n 1')
+
+        # to *-seq prediction
+
+        pred = self.to_pred(seq_embed_convolved)
+
+        if exists(target):
+            if self.binary_target:
+                return self.loss_fn(pred, target.float())
+            else:
+                if return_corr_coef:
+                    return pearson_corr_coef(pred, target)
+
+                return poisson_loss(pred, target)
+
+        # return prediction if not auto-calculating loss
+
+        return pred
