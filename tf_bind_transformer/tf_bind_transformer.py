@@ -691,7 +691,7 @@ class HyperTransformerAdapterModel(nn.Module):
         seq_embed = self.cond_genetic(seq_embed, contextual_embed)
         aa_embed = self.cond_protein(aa_embed, contextual_embed, mask = aa_mask)
 
-        # cross attention
+        # 1 transformer block to produce hyper convolution weights from protein embedding, to be slid across genetic embedding to detect binding spot
 
         hyper_conv_kernel_size = self.conv_weight_slices_queries.shape[0]
 
