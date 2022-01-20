@@ -9,6 +9,7 @@ from einops.layers.torch import Rearrange, Reduce
 
 from contextlib import contextmanager
 from enformer_pytorch import Enformer
+from enformer_pytorch.enformer_pytorch import poisson_loss, pearson_corr_coef
 from enformer_pytorch.finetune import freeze_batchnorms_, freeze_all_but_layernorms_
 
 from tf_bind_transformer.cache_utils import cache_fn
@@ -58,23 +59,6 @@ def logavgexp(
     avg_exp = t_exp.sum(dim = dim).clamp(min = eps) / n
     out = log(avg_exp, eps = eps) + max_t - norm
     return out * temp
-
-# losses and metrics
-
-def poisson_loss(pred, target):
-    return (pred - target * log(pred)).mean()
-
-def pearson_corr_coef(x, y, eps = 1e-8):
-    x2 = x * x
-    y2 = y * y
-    xy = x * y
-    ex = x.mean(dim = 1)
-    ey = y.mean(dim = 1)
-    exy = xy.mean(dim = 1)
-    ex2 = x2.mean(dim = 1)
-    ey2 = y2.mean(dim = 1)
-    r = (exy - ex * ey) / (torch.sqrt(ex2 - (ex * ex)) * torch.sqrt(ey2 - (ey * ey)) + eps)
-    return r.mean(dim = -1)
 
 # genetic sequence caching enformer forward decorator
 
