@@ -440,6 +440,7 @@ $ CLEAR_CACHE=1 python train.py
 - [x] filter remap dataframe with hg38 blacklist
 - [x] handle targets with modifications from remap with all peaks (underscore in name)
 - [x] grad clipping
+- [x] add a safe initialization whereby rows of dataframe with targets not found in the tfactor fasta folder will be filtered out
 - [ ] normalization of interactions between genetic and amino acid sequence
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
 - [ ] support for custom transformers other than enformer
@@ -448,7 +449,7 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] warmup in training loop
 - [ ] mixed precision
 - [ ] use wandb for experiment tracking
-- [ ] add a safe initialization whereby rows of dataframe with targets not found in the tfactor fasta folder will be filtered out
+- [ ] add accuracy metric to fine tune script
 
 ## Appreciation
 
