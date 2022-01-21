@@ -389,6 +389,20 @@ ds['PAX3-FOXO1'] # (<seq1>, <seq2>)
 
 ```
 
+## Preprocessing (wip)
+
+get a copy of hg38 blacklist bed file from calico
+
+```bash
+$ gsutil cp gs://basenji_barnyard/hg38.blacklist.rep.bed ./
+```
+
+using bedtools to filter out repetitive regions of the genome
+
+```bash
+$ bedtools intersect -v -a ./remap2022_all_macs2_hg38_v1_0.bed -b ./hg38.blacklist.rep.bed > remap2022_all_filtered.bed
+```
+
 ## Caching
 
 During training, protein sequences and contextual strings are cached to `~/.cache.tf.bind.transformer` directory. If you would like to make sure the caching is working, you just need to run your training script with `VERBOSE=1`
