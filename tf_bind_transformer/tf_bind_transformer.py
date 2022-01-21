@@ -144,6 +144,8 @@ class AdapterModel(nn.Module):
         self.enformer = enformer
         enformer_dim = enformer.dim * 2
 
+        self.norm_seq_embed = nn.LayerNorm(enformer_dim)
+
         # contextual embedding related variables
 
         assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
@@ -233,6 +235,8 @@ class AdapterModel(nn.Module):
 
         with enformer_context:
             seq_embed = enformer_forward(seq, return_only_embeddings = True)
+
+        seq_embed = self.norm_seq_embed(seq_embed)
 
         # protein related embeddings
 
@@ -344,6 +348,8 @@ class AttentionAdapterModel(nn.Module):
         self.enformer = enformer
         enformer_dim = enformer.dim * 2
 
+        self.norm_seq_embed = nn.LayerNorm(enformer_dim)
+
         # contextual embedding related variables
 
         assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
@@ -445,6 +451,8 @@ class AttentionAdapterModel(nn.Module):
 
         with enformer_context:
             seq_embed = enformer_forward(seq, return_only_embeddings = True)
+
+        seq_embed = self.norm_seq_embed(seq_embed)
 
         # protein related embeddings
 
@@ -552,6 +560,8 @@ class HyperTransformerAdapterModel(nn.Module):
         self.enformer = enformer
         enformer_dim = enformer.dim * 2
 
+        self.norm_seq_embed = nn.LayerNorm(enformer_dim)
+
         # contextual embedding related variables
 
         assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
@@ -657,6 +667,8 @@ class HyperTransformerAdapterModel(nn.Module):
 
         with enformer_context:
             seq_embed = enformer_forward(seq, return_only_embeddings = True)
+
+        seq_embed = self.norm_seq_embed(seq_embed)
 
         # protein related embeddings
 
