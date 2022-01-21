@@ -124,6 +124,18 @@ def filter_bed_file_by_(bed_file_1, bed_file_2, output_file):
     bed_file_1_bedtool_intersect_bed_file_2_bedtool = bed_file_1_bedtool.intersect(bed_file_2_bedtool, v = True)
     bed_file_1_bedtool_intersect_bed_file_2_bedtool.saveas(output_file)
 
+def filter_df_by_tfactor_fastas(df, folder):
+    df = remap_df_add_experiment_target_cell_(df)
+    files = [*Path(folder).glob('**/*.fasta')]
+    present_target_names = set([f.stem.split('.')[0] for f in files])
+    all_df_targets = df.column('target').unique().to_list()
+
+    all_df_targets_with_parsed_name = [(target, parse_gene_name(target)) for target in all_df_targets]
+    unknown_targets = [target for target, parsed_target_name in all_df_targets_with_parsed_name if parsed_target_name not in present_target_names]
+
+    df = df.filter(pl_isin('target', unknown_targets))
+    return df
+
 def generate_random_ranges_from_fasta(
     fasta_file,
     *,
