@@ -97,6 +97,12 @@ NAMES_WITH_HYPHENS = {
 def parse_gene_name(name):
     if '-' not in name or name in NAMES_WITH_HYPHENS:
         name = GENE_IDENTIFIER_MAP.get(name, name)
+
+        if '_' in name:
+            # for now, if target with modification
+            # just search for the target factor name to the left of the underscore
+            name, *_ = name.split('_')
+
         return (name,)
 
     first, *rest = name.split('-')
