@@ -109,13 +109,16 @@ while True:
         seq, tf_aa, contextual_texts, _, binary_target = collate_dl_outputs(next(valid_dl), next(valid_neg_dl))
         seq, binary_target = seq.cuda(), binary_target.cuda()
 
-        valid_loss = model(
+        valid_logits = model(
             seq,
-            target = binary_target,
             aa = tf_aa,
             contextual_free_text = contextual_texts
         )
 
+        valid_loss = model.loss_fn(valid_logits, binary_target.float())
+        valid_accuracy = ((valid_logits.sigmoid() > 0.5).int() == binary_target).sum() / (binary_target.numel())
+
         print(f'valid loss: {valid_loss.item()}')
+        print(f'valid accuracy: {valid_accuracy.item()}')
 
     i += 1
