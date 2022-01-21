@@ -5,6 +5,7 @@ from tf_bind_transformer.cache_utils import cache_fn, run_once
 
 GLOBAL_VARIABLES = dict(model = None)
 
+MAX_LENGTH = 1024
 ESM_EMBED_DIM = 1280
 
 INT_TO_AA_STR_MAP = {
@@ -51,8 +52,11 @@ def get_single_esm_repr(protein_str):
     data = [('protein', protein_str)]
     batch_labels, batch_strs, batch_tokens = batch_converter(data)
 
+    if batch_tokens.shape[1] > MAX_LENGTH:
+        print(f'warning max length protein esm: {protein_str}')
+
     with torch.no_grad():
-        results = model(batch_tokens, repr_layers=[33])
+        results = model(batch_tokens[:, :MAX_LENGTH], repr_layers=[33])
 
     token_representations = results['representations'][33]
     representation = token_representations[0][1 : len(protein_str) + 1]

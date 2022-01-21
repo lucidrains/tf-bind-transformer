@@ -100,9 +100,9 @@ CHR_IDS = set([*range(1, 23), 'X'])
 CHR_NAMES = get_chr_names(CHR_IDS)
 
 def remap_df_add_experiment_target_cell_(df, col = 'column_4'):
-    exp_id = df.select([pl.col(col).str.extract(r"^(\w+)\.*")])
-    targets = df.select([pl.col(col).str.extract(r"[\w+]\.(\w+)\.[\w+]")])
-    cell_type = df.select([pl.col(col).str.extract(r"^.*\.(\w+)$")])
+    exp_id = df.select([pl.col(col).str.extract(r"^([\w\-]+)\.*")])
+    targets = df.select([pl.col(col).str.extract(r"[\w\-]+\.([\w\-]+)\.[\w\-]+")])
+    cell_type = df.select([pl.col(col).str.extract(r"^.*\.([\w\-]+)$")])
 
     exp_id = exp_id.rename({col: 'experiment'}).to_series(0)
     targets = targets.rename({col: 'target'}).to_series(0)
@@ -240,7 +240,7 @@ class NegativePeakDataset(Dataset):
         self.fasta = FastaInterval(**kwargs)
 
     def __len__(self):
-        return len(self.df)
+        return len(self.neg_df)
 
     def __getitem__(self, ind):
         chr_name, begin, end = self.neg_df.row(ind)

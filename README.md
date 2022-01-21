@@ -256,6 +256,14 @@ from tf_bind_transformer import HyperTransformerAdapterModel
 from tf_bind_transformer.training_utils import get_optimizer
 from tf_bind_transformer.data import RemapAllPeakDataset, NegativePeakDataset, get_dataloader, collate_dl_outputs
 
+# constants
+
+BATCH_SIZE = 2
+GRAD_ACCUM_STEPS = 8
+VALIDATE_EVERY = 250
+
+# datasets and dataloaders
+
 ds = RemapAllPeakDataset(
     bed_file = 'remap2022_all.bed',                  # path to remap bed file
     fasta_file = './hg38.ml.fa',                     # fasta file (human)
@@ -290,11 +298,11 @@ valid_neg_ds = NegativePeakDataset(
     context_length = 4096
 )
 
-dl = iter(get_dataloader(ds, cycle_iter = True, batch_size = 2))
-neg_dl = iter(get_dataloader(ds, cycle_iter = True, batch_size = 2))
+dl = get_dataloader(ds, cycle_iter = True, shuffle = True, batch_size = BATCH_SIZE)
+neg_dl = get_dataloader(neg_ds, cycle_iter = True, shuffle = True, batch_size = BATCH_SIZE)
 
-valid_dl = iter(get_dataloader(valid_ds, cycle_iter = True, batch_size = 2))
-valid_neg_dl = iter(get_dataloader(valid_neg_ds, cycle_iter = True, batch_size = 2))
+valid_dl = get_dataloader(valid_ds, cycle_iter = True, batch_size = BATCH_SIZE)
+valid_neg_dl = get_dataloader(valid_neg_ds, cycle_iter = True, batch_size = BATCH_SIZE)
 
 # instantiate enformer or load pretrained
 
@@ -314,24 +322,49 @@ model = HyperTransformerAdapterModel(
 
 optim = get_optimizer(model.parameters())
 
-# data
+i = 0
+while True:
+    model.train()
 
-seq, tf_aa, contextual_texts, _, binary_target = collate_dl_outputs(next(dl), next(neg_dl))
-seq, binary_target = seq.cuda(), binary_target.cuda()
+    for _ in range(GRAD_ACCUM_STEPS):
+        # data
 
-# train
+        seq, tf_aa, contextual_texts, _, binary_target = collate_dl_outputs(next(dl), next(neg_dl))
+        seq, binary_target = seq.cuda(), binary_target.cuda()
 
-loss = model(
-    seq,
-    target = binary_target,
-    aa = tf_aa,
-    contextual_free_text = contextual_texts,
-    finetune_enformer_ln_only = True
-)
+        # train
 
-loss.backward()
-optim.step()
-optim.zero_grad()
+        loss = model(
+            seq,
+            target = binary_target,
+            aa = tf_aa,
+            contextual_free_text = contextual_texts,
+            finetune_enformer_ln_only = True
+        )
+
+
+        (loss / GRAD_ACCUM_STEPS).backward()
+
+    print(f'loss: {loss.item()}')
+    optim.step()
+    optim.zero_grad()
+
+    if not (i % VALIDATE_EVERY):
+        model.eval()
+
+        seq, tf_aa, contextual_texts, _, binary_target = collate_dl_outputs(next(valid_dl), next(valid_neg_dl))
+        seq, binary_target = seq.cuda(), binary_target.cuda()
+
+        valid_loss = model(
+            seq,
+            target = binary_target,
+            aa = tf_aa,
+            contextual_free_text = contextual_texts
+        )
+
+        print(f'valid loss: {valid_loss.item()}')
+
+    i += 1
 
 ```
 
