@@ -261,6 +261,7 @@ from tf_bind_transformer.data import RemapAllPeakDataset, NegativePeakDataset, g
 BATCH_SIZE = 2
 GRAD_ACCUM_STEPS = 8
 VALIDATE_EVERY = 250
+GRAD_CLIP_MAX_NORM = 1.5
 
 # datasets and dataloaders
 
@@ -326,6 +327,7 @@ i = 0
 while True:
     model.train()
 
+    total_loss = 0.
     for _ in range(GRAD_ACCUM_STEPS):
         # data
 
@@ -342,10 +344,12 @@ while True:
             finetune_enformer_ln_only = True
         )
 
-
+        total_loss += loss.item()
         (loss / GRAD_ACCUM_STEPS).backward()
 
-    print(f'loss: {loss.item()}')
+    print(f'loss: {total_loss / GRAD_ACCUM_STEPS}')
+
+    torch.nn.utils.clip_grad_norm_(model.parameters(), GRAD_CLIP_MAX_NORM)
     optim.step()
     optim.zero_grad()
 
@@ -435,12 +439,13 @@ $ CLEAR_CACHE=1 python train.py
 - [x] filter remap dataframe based on tfactor fasta folder
 - [x] filter remap dataframe with hg38 blacklist
 - [x] handle targets with modifications from remap with all peaks (underscore in name)
+- [x] grad clipping
 - [ ] normalization of interactions between genetic and amino acid sequence
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
 - [ ] support for custom transformers other than enformer
 - [ ] derive gender of cell from absence of chrY in dataframe and add to context
 - [ ] write a simple trainer class that takes care of the training loop
-- [ ] grad clipping, warmup in training loop
+- [ ] warmup in training loop
 - [ ] mixed precision
 - [ ] use wandb for experiment tracking
 - [ ] add a safe initialization whereby rows of dataframe with targets not found in the tfactor fasta folder will be filtered out
