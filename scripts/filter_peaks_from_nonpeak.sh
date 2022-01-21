@@ -21,6 +21,7 @@ cp $filename "$filename.filtered"
 for i in ./chunked_remap*; do
   echo "filtering $filename.filtered with $i to $i.filtered";
   bedtools intersect -v -a "$filename.filtered" -b "$i" > "$i.filtered"
+  rm "$filename.filtered"
   filename=$i
 done
 
