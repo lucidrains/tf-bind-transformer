@@ -428,6 +428,7 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] filter remap dataframe based on tfactor fasta folder
 - [ ] filter remap dataframe with hg38 blacklist
 - [ ] grad clipping, warmup in training loop
+- [ ] mixed precision
 - [ ] use wandb for experiment tracking
 
 ## Appreciation
