@@ -85,7 +85,7 @@ enformer = Enformer(
     dim = 1536,
     depth = 2,
     target_length = 256
-)
+)negat
 
 model = AdapterModel(
     enformer = enformer,
@@ -450,6 +450,7 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] mixed precision
 - [ ] use wandb for experiment tracking
 - [ ] add accuracy metric to fine tune script
+- [ ] cleanup tech debt in data and protein_utils
 
 ## Appreciation
 
