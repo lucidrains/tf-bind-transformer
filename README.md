@@ -423,6 +423,10 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] support for custom transformers other than enformer
 - [ ] add a safe initialization whereby rows of dataframe with targets not found in the tfactor fasta folder will be filtered out
 - [ ] derive gender of cell from absence of chrY in dataframe and add to context
+- [ ] handle targets with modifications from remap with all peaks (underscore in name)
+- [ ] write a simple trainer class that takes care of the training loop
+- [ ] filter remap dataframe based on tfactor fasta folder
+- [ ] filter remap dataframe with hg38 blacklist
 
 ## Appreciation
 
