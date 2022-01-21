@@ -245,7 +245,7 @@ generate_random_ranges_from_fasta(
 )
 ```
 
-ex. one gradient step
+working fine-tuning training loop
 
 ```python
 import torch
