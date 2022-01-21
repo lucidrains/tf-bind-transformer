@@ -250,16 +250,26 @@ ex. one gradient step
 ```python
 import torch
 from enformer_pytorch import load_pretrained_model
-from tf_bind_transformer import AttentionAdapterModel
+
+from tf_bind_transformer import HyperTransformerAdapterModel
 
 from tf_bind_transformer.training_utils import get_optimizer
-from tf_bind_transformer.data import RemapAllPeakDataset, get_dataloader
+from tf_bind_transformer.data import RemapAllPeakDataset, NegativePeakDataset, get_dataloader, collate_dl_outputs
 
 ds = RemapAllPeakDataset(
     bed_file = 'remap2022_all.bed',                  # path to remap bed file
     fasta_file = './hg38.ml.fa',                     # fasta file (human)
     factor_fasta_folder = './tfactor.fastas',        # path to downloaded tfactors fastas
-    filter_chromosome_ids = [*range(2, 24, 2), 'X'], # even chromosomes for 
+    filter_chromosome_ids = [*range(1, 24, 2), 'X'], # even chromosomes for training
+    context_length = 4096                            # context length to be fetched
+)
+
+neg_ds = NegativePeakDataset(
+    negative_bed_file = './generated-non-peaks.bed', # path to negative peaks generated with script above
+    remap_bed_file = 'remap2022_all.bed',            # path to remap bed file
+    fasta_file = './hg38.ml.fa',                     # fasta file (human)
+    factor_fasta_folder = './tfactor.fastas',        # path to downloaded tfactors fastas
+    filter_chromosome_ids = [*range(1, 24, 2), 'X'], # even chromosomes for training
     context_length = 4096                            # context length to be fetched
 )
 
@@ -271,8 +281,20 @@ valid_ds = RemapAllPeakDataset(
     context_length = 4096
 )
 
-dl = iter(get_dataloader(ds, batch_size = 2))
-valid_dl = iter(get_dataloader(valid_ds, batch_size = 2))
+valid_neg_ds = NegativePeakDataset(
+    negative_bed_file = './generated-non-peaks.bed', # path to negative peaks generated with script above
+    remap_bed_file = './remap2022_all.bed',
+    fasta_file = './hg38.ml.fa',
+    factor_fasta_folder = './tfactor.fastas',
+    filter_chromosome_ids = [*range(1, 23, 2), 'Y'], # odd chromosomes for validation
+    context_length = 4096
+)
+
+dl = iter(get_dataloader(ds, cycle_iter = True, batch_size = 2))
+neg_dl = iter(get_dataloader(ds, cycle_iter = True, batch_size = 2))
+
+valid_dl = iter(get_dataloader(valid_ds, cycle_iter = True, batch_size = 2))
+valid_neg_dl = iter(get_dataloader(valid_neg_ds, cycle_iter = True, batch_size = 2))
 
 # instantiate enformer or load pretrained
 
@@ -280,20 +302,21 @@ enformer = load_pretrained_model('preview', target_length = -1)
 
 # instantiate model wrapper that takes in enformer
 
-model = AttentionAdapterModel(
+model = HyperTransformerAdapterModel(
     enformer = enformer,
     use_esm_embeds = True,
     use_free_text_context = True,
     free_text_embed_method = 'mean_pool',
-    binary_target = True,                      # binary targets
+    binary_target = True,
+    target_mse_loss = True,
     use_squeeze_excite = True
 ).cuda()
 
-optim = get_optimizer(model.parameters(), lr = 1e-4)
+optim = get_optimizer(model.parameters())
 
 # data
 
-seq, tf_aa, contextual_texts, _, binary_target = next(dl)
+seq, tf_aa, contextual_texts, _, binary_target = collate_dl_outputs(next(dl), next(neg_dl))
 seq, binary_target = seq.cuda(), binary_target.cuda()
 
 # train

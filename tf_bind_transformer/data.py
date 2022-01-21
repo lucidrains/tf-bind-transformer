@@ -96,21 +96,21 @@ class FactorProteinDataset(Dataset):
 def get_chr_names(ids):
     return set(map(lambda t: f'chr{t}', ids))
 
-CHR_IDS = set([*range(1, 23), 'X', 'Y'])
+CHR_IDS = set([*range(1, 23), 'X'])
 CHR_NAMES = get_chr_names(CHR_IDS)
 
 def remap_df_add_experiment_target_cell_(df, col = 'column_4'):
-    exp_id = df.select([pl.col(col).str.extract(r"(\w+)\.[\w+]\.[\w+]")])
+    exp_id = df.select([pl.col(col).str.extract(r"^(\w+)\.*")])
     targets = df.select([pl.col(col).str.extract(r"[\w+]\.(\w+)\.[\w+]")])
-    cell_type = df.select([pl.col(col).str.extract(r"[\w+]\.[\w+]\.(\w+)")])
+    cell_type = df.select([pl.col(col).str.extract(r"^.*\.(\w+)$")])
 
     exp_id = exp_id.rename({col: 'experiment'}).to_series(0)
     targets = targets.rename({col: 'target'}).to_series(0)
-    cell_type = exp_id.rename({col: 'cell_type'}).to_series(0)
+    cell_type = cell_type.rename({col: 'cell_type'}).to_series(0)
 
     df.insert_at_idx(3, exp_id)
     df.insert_at_idx(3, targets)
-    df.insert_at_idx(3, exp_id)
+    df.insert_at_idx(3, cell_type)
 
 def pl_isin(col, arr):
     equalities = list(map(lambda t: pl.col(col) == t, arr))
@@ -204,12 +204,83 @@ class RemapAllPeakDataset(Dataset):
 
         return seq, aa_seq, context_str, value, label
 
+class NegativePeakDataset(Dataset):
+    def __init__(
+        self,
+        *,
+        negative_bed_file,
+        remap_bed_file,
+        factor_fasta_folder,
+        filter_chromosome_ids = None,
+        **kwargs
+    ):
+        super().__init__()
+        neg_df = pl.read_csv(negative_bed_file, sep = '\t', has_headers = False)
+
+        remap_df = pl.read_csv(remap_bed_file, sep = '\t', has_headers = False)
+        remap_df_add_experiment_target_cell_(remap_df)
+
+        dataset_chr_ids = CHR_IDS
+
+        if exists(filter_chromosome_ids):
+            dataset_chr_ids = dataset_chr_ids.intersection(set(filter_chromosome_ids))
+
+
+        neg_df = neg_df.filter(pl_isin('column_1', get_chr_names(dataset_chr_ids)))
+
+        assert len(neg_df) > 0, 'dataset is empty by filter criteria'
+
+        self.neg_df = neg_df
+
+        self.cell_types = remap_df['cell_type'].unique().to_list()
+        self.experiments = remap_df['experiment'].unique().to_list()
+        self.targets = remap_df['target'].unique().to_list()
+
+        self.factor_ds = FactorProteinDataset(factor_fasta_folder)
+        self.fasta = FastaInterval(**kwargs)
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, ind):
+        chr_name, begin, end = self.neg_df.row(ind)
+
+        experiment = choice(self.experiments)
+        target = choice(self.targets)
+        cell_type = choice(self.cell_types)
+
+        seq = self.fasta(chr_name, begin, end)
+        aa_seq = self.factor_ds[target]
+        context_str = f'{cell_type} | {experiment}'
+
+        value = torch.Tensor([0.])
+        label = torch.Tensor([0.])
+
+        return seq, aa_seq, context_str, value, label
+
 # dataloader related functions
 
 def collate_fn(data):
     seq, aa_seq, context_str, values, labels = list(zip(*data))
     return torch.stack(seq), tuple(aa_seq), tuple(context_str), torch.stack(values, dim = 0), torch.cat(labels, dim = 0)
 
-def get_dataloader(ds, **kwargs):
+def collate_dl_outputs(*dl_outputs):
+    outputs = list(zip(*dl_outputs))
+    ret = []
+    for entry in outputs:
+        if isinstance(entry[0], torch.Tensor):
+            entry = torch.cat(entry, dim = 0)
+        else:
+            entry = (sub_el for el in entry for sub_el in el)
+        ret.append(entry)
+    return tuple(ret)
+
+def cycle(loader):
+    while True:
+        for data in loader:
+            yield data
+
+def get_dataloader(ds, cycle_iter = False, **kwargs):
     dl = DataLoader(ds, collate_fn = collate_fn, **kwargs)
-    return dl
+    wrapper = cycle if cycle_iter else iter
+    return wrapper(dl)
