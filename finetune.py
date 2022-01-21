@@ -10,42 +10,53 @@ from tf_bind_transformer.data import RemapAllPeakDataset, NegativePeakDataset, g
 
 BATCH_SIZE = 2
 GRAD_ACCUM_STEPS = 8
+
+# effective batch size of BATCH_SIZE * GRAD_ACCUM_STEPS = 16
+
 VALIDATE_EVERY = 250
 GRAD_CLIP_MAX_NORM = 1.5
+
+REMAP_FILE_PATH = './remap2022_all.bed'
+TFACTOR_FOLDER = './tfactor.fastas'
+FASTA_FILE_PATH = './hg38.ml.fa'
+NON_PEAK_PATH = './generated-non-peaks.bed'
+
+TRAIN_CHROMOSOMES = [*range(1, 24, 2), 'X']
+VALID_CHROMOSOMES = [*range(1, 23, 2), 'Y']
 
 # datasets and dataloaders
 
 ds = RemapAllPeakDataset(
-    bed_file = 'remap2022_all.bed',                  # path to remap bed file
-    fasta_file = './hg38.ml.fa',                     # fasta file (human)
-    factor_fasta_folder = './tfactor.fastas',        # path to downloaded tfactors fastas
-    filter_chromosome_ids = [*range(1, 24, 2), 'X'], # even chromosomes for training
+    bed_file = REMAP_FILE_PATH,                      # path to remap bed file
+    fasta_file = FASTA_FILE_PATH,                    # fasta file (human)
+    factor_fasta_folder = TFACTOR_FOLDER,            # path to downloaded tfactors fastas
+    filter_chromosome_ids = TRAIN_CHROMOSOMES,       # even chromosomes for training
     context_length = 4096                            # context length to be fetched
 )
 
 neg_ds = NegativePeakDataset(
-    negative_bed_file = './generated-non-peaks.bed', # path to negative peaks generated with script above
-    remap_bed_file = 'remap2022_all.bed',            # path to remap bed file
-    fasta_file = './hg38.ml.fa',                     # fasta file (human)
-    factor_fasta_folder = './tfactor.fastas',        # path to downloaded tfactors fastas
-    filter_chromosome_ids = [*range(1, 24, 2), 'X'], # even chromosomes for training
+    negative_bed_file = NON_PEAK_PATH,               # path to negative peaks generated with script above
+    remap_bed_file = REMAP_FILE_PATH,                # path to remap bed file
+    fasta_file = FASTA_FILE_PATH,                    # fasta file (human)
+    factor_fasta_folder = TFACTOR_FOLDER,            # path to downloaded tfactors fastas
+    filter_chromosome_ids = TRAIN_CHROMOSOMES,       # even chromosomes for training
     context_length = 4096                            # context length to be fetched
 )
 
 valid_ds = RemapAllPeakDataset(
-    bed_file = './remap2022_all.bed',
-    fasta_file = './hg38.ml.fa',
-    factor_fasta_folder = './tfactor.fastas',
-    filter_chromosome_ids = [*range(1, 23, 2), 'Y'], # odd chromosomes for validation
+    bed_file = REMAP_FILE_PATH,
+    fasta_file = FASTA_FILE_PATH,
+    factor_fasta_folder = TFACTOR_FOLDER,
+    filter_chromosome_ids = VALID_CHROMOSOMES,       # odd chromosomes for validation
     context_length = 4096
 )
 
 valid_neg_ds = NegativePeakDataset(
-    negative_bed_file = './generated-non-peaks.bed', # path to negative peaks generated with script above
-    remap_bed_file = './remap2022_all.bed',
-    fasta_file = './hg38.ml.fa',
-    factor_fasta_folder = './tfactor.fastas',
-    filter_chromosome_ids = [*range(1, 23, 2), 'Y'], # odd chromosomes for validation
+    negative_bed_file = NON_PEAK_PATH,               # path to negative peaks generated with script above
+    remap_bed_file = REMAP_FILE_PATH,
+    fasta_file = FASTA_FILE_PATH,
+    factor_fasta_folder = TFACTOR_FOLDER,
+    filter_chromosome_ids = VALID_CHROMOSOMES,       # odd chromosomes for validation
     context_length = 4096
 )
 
