@@ -124,11 +124,13 @@ def filter_bed_file_by_(bed_file_1, bed_file_2, output_file):
     bed_file_1_bedtool_intersect_bed_file_2_bedtool = bed_file_1_bedtool.intersect(bed_file_2_bedtool, v = True)
     bed_file_1_bedtool_intersect_bed_file_2_bedtool.saveas(output_file)
 
-def filter_df_by_tfactor_fastas(df, folder):
-    df = remap_df_add_experiment_target_cell_(df)
+def filter_df_by_tfactor_fastas(df, folder, derive_target_col = False):
+    if derive_target_col:
+        remap_df_add_experiment_target_cell_(df)
+
     files = [*Path(folder).glob('**/*.fasta')]
     present_target_names = set([f.stem.split('.')[0] for f in files])
-    all_df_targets = df.column('target').unique().to_list()
+    all_df_targets = df.get_column('target').unique().to_list()
 
     all_df_targets_with_parsed_name = [(target, parse_gene_name(target)) for target in all_df_targets]
     unknown_targets = [target for target, parsed_target_name in all_df_targets_with_parsed_name if parsed_target_name not in present_target_names]
@@ -193,18 +195,20 @@ class RemapAllPeakDataset(Dataset):
             dataset_chr_ids = dataset_chr_ids.intersection(set(filter_chromosome_ids))
 
         df = df.filter(pl_isin('column_1', get_chr_names(dataset_chr_ids)))
+        df = filter_df_by_tfactor_fastas(df, factor_fasta_folder, derive_target_col = True)
+
+        self.factor_ds = FactorProteinDataset(factor_fasta_folder)
 
         assert len(df) > 0, 'dataset is empty by filter criteria'
 
         self.df = df
-        self.factor_ds = FactorProteinDataset(factor_fasta_folder)
         self.fasta = FastaInterval(**kwargs)
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, ind):
-        chr_name, begin, end, experiment_target_cell_type, reading, *_ = self.df.row(ind)
+        chr_name, begin, end, _, _, _, experiment_target_cell_type, reading, *_ = self.df.row(ind)
         experiment, target, cell_type = experiment_target_cell_type.split('.')
 
         seq = self.fasta(chr_name, begin, end)
@@ -230,7 +234,7 @@ class NegativePeakDataset(Dataset):
         neg_df = pl.read_csv(negative_bed_file, sep = '\t', has_headers = False)
 
         remap_df = pl.read_csv(remap_bed_file, sep = '\t', has_headers = False)
-        remap_df_add_experiment_target_cell_(remap_df)
+        remap_df = filter_df_by_tfactor_fastas(remap_df, factor_fasta_folder, derive_target_col = True)
 
         dataset_chr_ids = CHR_IDS
 
