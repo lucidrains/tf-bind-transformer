@@ -427,6 +427,8 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] write a simple trainer class that takes care of the training loop
 - [ ] filter remap dataframe based on tfactor fasta folder
 - [ ] filter remap dataframe with hg38 blacklist
+- [ ] grad clipping, warmup in training loop
+- [ ] use wandb for experiment tracking
 
 ## Appreciation
 
