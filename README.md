@@ -432,18 +432,18 @@ $ CLEAR_CACHE=1 python train.py
 - [x] use checkpointing when fine-tuning enformer
 - [x] take care of prepping dataframe with proper chromosome and training / validation split
 - [x] use basenji blacklist bed file for filtering out rows in remap
+- [x] filter remap dataframe based on tfactor fasta folder
+- [x] filter remap dataframe with hg38 blacklist
+- [x] handle targets with modifications from remap with all peaks (underscore in name)
 - [ ] normalization of interactions between genetic and amino acid sequence
 - [ ] hyperparameters for different types of normalization on fine grained interactions feature map
 - [ ] support for custom transformers other than enformer
-- [ ] add a safe initialization whereby rows of dataframe with targets not found in the tfactor fasta folder will be filtered out
 - [ ] derive gender of cell from absence of chrY in dataframe and add to context
-- [ ] handle targets with modifications from remap with all peaks (underscore in name)
 - [ ] write a simple trainer class that takes care of the training loop
-- [ ] filter remap dataframe based on tfactor fasta folder
-- [ ] filter remap dataframe with hg38 blacklist
 - [ ] grad clipping, warmup in training loop
 - [ ] mixed precision
 - [ ] use wandb for experiment tracking
+- [ ] add a safe initialization whereby rows of dataframe with targets not found in the tfactor fasta folder will be filtered out
 
 ## Appreciation
 
