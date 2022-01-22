@@ -286,7 +286,7 @@ valid_ds = RemapAllPeakDataset(
     bed_file = './remap2022_all.bed',
     fasta_file = './hg38.ml.fa',
     factor_fasta_folder = './tfactor.fastas',
-    filter_chromosome_ids = [*range(1, 23, 2), 'Y'], # odd chromosomes for validation
+    filter_chromosome_ids = [*range(2, 23, 2), 'Y'], # odd chromosomes for validation
     context_length = 4096
 )
 
@@ -295,7 +295,7 @@ valid_neg_ds = NegativePeakDataset(
     remap_bed_file = './remap2022_all.bed',
     fasta_file = './hg38.ml.fa',
     factor_fasta_folder = './tfactor.fastas',
-    filter_chromosome_ids = [*range(1, 23, 2), 'Y'], # odd chromosomes for validation
+    filter_chromosome_ids = [*range(2, 23, 2), 'Y'], # odd chromosomes for validation
     context_length = 4096
 )
 

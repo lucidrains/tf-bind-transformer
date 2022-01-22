@@ -22,7 +22,7 @@ FASTA_FILE_PATH = './hg38.ml.fa'
 NON_PEAK_PATH = './generated-non-peaks.bed'
 
 TRAIN_CHROMOSOMES = [*range(1, 24, 2), 'X']
-VALID_CHROMOSOMES = [*range(1, 23, 2)]
+VALID_CHROMOSOMES = [*range(2, 24, 2)]
 
 # datasets and dataloaders
 
