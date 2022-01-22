@@ -458,6 +458,7 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] master dataset class that handles both training / validation splitting, efficient instantiation of dataframe, filtering etc
 - [ ] auto-auroc calc
 - [ ] k-fold cross validation
+- [ ] output attention intermediates (or convolution output for hypertransformer), for interpreting binding site
 
 ## Appreciation
 
