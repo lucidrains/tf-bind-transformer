@@ -451,6 +451,10 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] mixed precision
 - [ ] use wandb for experiment tracking
 - [ ] cleanup tech debt in data and protein_utils
+- [ ] write fine-tuning script for finetuning on merged genomic track(s) from remap
+- [ ] create faster protein and context embedding derivation by optionally moving model to gpu and back to cpu when done
+- [ ] explore protein model fine-tuning of layernorm
+- [ ] use ProtTrans for longer context proteins, look into AF2
 
 ## Appreciation
 
