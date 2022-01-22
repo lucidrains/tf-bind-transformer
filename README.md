@@ -456,6 +456,8 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] explore protein model fine-tuning of layernorm
 - [ ] use ProtTrans for longer context proteins, look into AF2
 - [ ] master dataset class that handles both training / validation splitting, efficient instantiation of dataframe, filtering etc
+- [ ] auto-auroc calc
+- [ ] k-fold cross validation
 
 ## Appreciation
 
