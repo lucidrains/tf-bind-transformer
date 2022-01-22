@@ -455,6 +455,7 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] create faster protein and context embedding derivation by optionally moving model to gpu and back to cpu when done
 - [ ] explore protein model fine-tuning of layernorm
 - [ ] use ProtTrans for longer context proteins, look into AF2
+- [ ] master dataset class that handles both training / validation splitting, efficient instantiation of dataframe, filtering etc
 
 ## Appreciation
 
