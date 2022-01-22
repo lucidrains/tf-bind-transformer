@@ -21,8 +21,8 @@ TFACTOR_FOLDER = './tfactor.fastas'
 FASTA_FILE_PATH = './hg38.ml.fa'
 NON_PEAK_PATH = './generated-non-peaks.bed'
 
-TRAIN_CHROMOSOMES = [*range(1, 24, 2), 'X']
-VALID_CHROMOSOMES = [*range(2, 24, 2)]
+TRAIN_CHROMOSOMES = [*range(1, 24, 2), 'X'] # train on odd chromosomes
+VALID_CHROMOSOMES = [*range(2, 24, 2)]      # validate on even
 
 # datasets and dataloaders
 
