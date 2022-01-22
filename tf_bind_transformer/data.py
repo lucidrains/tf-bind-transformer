@@ -214,7 +214,9 @@ class RemapAllPeakDataset(Dataset):
 
     def __getitem__(self, ind):
         chr_name, begin, end, _, _, _, experiment_target_cell_type, reading, *_ = self.df.row(ind)
-        experiment, target, cell_type = experiment_target_cell_type.split('.')
+
+        experiment, target, *cell_type = experiment_target_cell_type.split('.')
+        cell_type = '.'.join(cell_type) # handle edge case where cell type contains periods
 
         seq = self.fasta(chr_name, begin, end)
         aa_seq = self.factor_ds[target]
