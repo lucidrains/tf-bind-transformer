@@ -24,6 +24,8 @@ NON_PEAK_PATH = './generated-non-peaks.bed'
 TRAIN_CHROMOSOMES = [*range(1, 24, 2), 'X'] # train on odd chromosomes
 VALID_CHROMOSOMES = [*range(2, 24, 2)]      # validate on even
 
+HELD_OUT_TARGET = ['SOX2']
+
 # datasets and dataloaders
 
 ds = RemapAllPeakDataset(
@@ -31,6 +33,7 @@ ds = RemapAllPeakDataset(
     fasta_file = FASTA_FILE_PATH,                    # fasta file (human)
     factor_fasta_folder = TFACTOR_FOLDER,            # path to downloaded tfactors fastas
     filter_chromosome_ids = TRAIN_CHROMOSOMES,       # even chromosomes for training
+    exclude_targets = HELD_OUT_TARGET,               # hold out certain targets for validation
     context_length = 4096                            # context length to be fetched
 )
 
@@ -40,6 +43,7 @@ neg_ds = NegativePeakDataset(
     fasta_file = FASTA_FILE_PATH,                    # fasta file (human)
     factor_fasta_folder = TFACTOR_FOLDER,            # path to downloaded tfactors fastas
     filter_chromosome_ids = TRAIN_CHROMOSOMES,       # even chromosomes for training
+    exclude_targets = HELD_OUT_TARGET,               # hold out certain targets for validation
     context_length = 4096                            # context length to be fetched
 )
 
@@ -48,6 +52,7 @@ valid_ds = RemapAllPeakDataset(
     fasta_file = FASTA_FILE_PATH,
     factor_fasta_folder = TFACTOR_FOLDER,
     filter_chromosome_ids = VALID_CHROMOSOMES,       # odd chromosomes for validation
+    include_targets = HELD_OUT_TARGET,
     context_length = 4096
 )
 
@@ -57,6 +62,7 @@ valid_neg_ds = NegativePeakDataset(
     fasta_file = FASTA_FILE_PATH,
     factor_fasta_folder = TFACTOR_FOLDER,
     filter_chromosome_ids = VALID_CHROMOSOMES,       # odd chromosomes for validation
+    include_targets = HELD_OUT_TARGET,
     context_length = 4096
 )
 

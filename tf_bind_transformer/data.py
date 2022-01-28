@@ -21,6 +21,14 @@ import pybedtools
 def exists(val):
     return val is not None
 
+def cast_list(val = None):
+    if not exists(val):
+        return []
+    return [val] if not isinstance(val, (tuple, list)) else val
+
+def read_bed(path):
+    return pl.read_csv(path, sep = '\t', has_headers = False)
+
 # fetch protein sequences by gene name and uniprot id
 
 class FactorProteinDatasetByUniprotID(Dataset):
@@ -189,10 +197,14 @@ class RemapAllPeakDataset(Dataset):
         bed_file,
         factor_fasta_folder,
         filter_chromosome_ids = None,
+        exclude_targets = None,
+        include_targets = None,
+        exclude_cell_types = None,
+        include_cell_types = None,
         **kwargs
     ):
         super().__init__()
-        df = pl.read_csv(bed_file, sep = '\t', has_headers = False)
+        df = read_bed(bed_file)
 
         dataset_chr_ids = CHR_IDS
 
@@ -203,6 +215,30 @@ class RemapAllPeakDataset(Dataset):
         df = filter_df_by_tfactor_fastas(df, factor_fasta_folder, derive_target_col = True)
 
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)
+
+        # filter dataset by inclusion and exclusion list of targets
+        # (<all available targets> intersect <include targets>) subtract <exclude targets>
+
+        include_targets = cast_list(include_targets)
+        exclude_targets = cast_list(exclude_targets)
+
+        if include_targets:
+            df = df.filter(pl_isin('target', include_targets))
+
+        if exclude_targets:
+            df = df.filter(pl_notin('target', exclude_targets))
+
+        # filter dataset by inclusion and exclusion list of cell types
+        # same logic as for targets
+
+        include_cell_types = cast_list(include_cell_types)
+        exclude_cell_types = cast_list(exclude_cell_types)
+
+        if include_cell_types:
+            df = df.filter(pl_isin('cell_type', include_cell_types))
+
+        if exclude_cell_types:
+            df = df.filter(pl_notin('cell_type', exclude_cell_types))
 
         assert len(df) > 0, 'dataset is empty by filter criteria'
 
@@ -235,12 +271,16 @@ class NegativePeakDataset(Dataset):
         remap_bed_file,
         factor_fasta_folder,
         filter_chromosome_ids = None,
+        exclude_targets = None,
+        include_targets = None,
+        exclude_cell_types = None,
+        include_cell_types = None,
         **kwargs
     ):
         super().__init__()
-        neg_df = pl.read_csv(negative_bed_file, sep = '\t', has_headers = False)
+        neg_df = read_bed(negative_bed_file)
 
-        remap_df = pl.read_csv(remap_bed_file, sep = '\t', has_headers = False)
+        remap_df = read_bed(remap_bed_file)
         remap_df = filter_df_by_tfactor_fastas(remap_df, factor_fasta_folder, derive_target_col = True)
 
         dataset_chr_ids = CHR_IDS
@@ -254,10 +294,31 @@ class NegativePeakDataset(Dataset):
         assert len(neg_df) > 0, 'dataset is empty by filter criteria'
 
         self.neg_df = neg_df
+        self.experiments = remap_df['experiment'].unique().to_list()
 
         self.cell_types = remap_df['cell_type'].unique().to_list()
-        self.experiments = remap_df['experiment'].unique().to_list()
+
         self.targets = remap_df['target'].unique().to_list()
+
+        include_targets = cast_list(include_targets)
+        exclude_targets = cast_list(exclude_targets)
+
+        if include_targets:
+            self.targets = list(set(self.targets).intersection(set(include_targets)))
+
+        if exclude_targets:
+            self.targets = list(set(self.targets) - set(exclude_targets))
+
+        assert self.targets, 'targets cannot be empty for negative set'
+
+        include_cell_types = cast_list(include_cell_types)
+        exclude_cell_types = cast_list(exclude_cell_types)
+
+        if include_cell_types:
+            self.cell_types = list(set(self.cell_types).intersection(set(include_cell_types)))
+
+        if exclude_cell_types:
+            self.cell_types = list(set(self.cell_types) - set(exclude_cell_types))
 
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)
         self.fasta = FastaInterval(**kwargs)

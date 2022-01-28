@@ -2,6 +2,7 @@ import requests
 from pathlib import Path
 import polars as pl
 from tf_bind_transformer.protein_utils import parse_gene_name
+from tf_bind_transformer.data import read_bed
 
 UNIPROT_URL = 'http://www.uniprot.org'
 REMAP_BED_PATH = './remap2022_crm_macs2_hg38_v1_0.bed'
@@ -25,7 +26,7 @@ def uniprot_mapping(fromtype, totype, identifier):
 if __name__ == '__main__':
     # load bed file and get all unique targets from column 3
 
-    df = pl.read_csv(REMAP_BED_PATH, sep = '\t', has_headers = False)
+    df = read_bed(REMAP_BED_PATH)
     genes = set([target for targets in df[:, 3] for target in targets.split(',')])
 
     print(f'{len(genes)} factors found')
