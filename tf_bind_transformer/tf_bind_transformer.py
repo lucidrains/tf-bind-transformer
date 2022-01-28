@@ -553,7 +553,8 @@ class HyperTransformerAdapterModel(nn.Module):
         dropout = 0.,
         use_squeeze_excite = False,
         binary_target = False,
-        target_mse_loss = False
+        target_mse_loss = False,
+        read_value_aux_loss_weight = 0.1
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
@@ -611,7 +612,7 @@ class HyperTransformerAdapterModel(nn.Module):
 
         self.to_hyper_weights = nn.Sequential(
             nn.LayerNorm(aa_embed_dim),
-            nn.Linear(aa_embed_dim, enformer_dim)
+            nn.Linear(aa_embed_dim, enformer_dim * 2)
         )
         # to predictions
 
@@ -624,6 +625,14 @@ class HyperTransformerAdapterModel(nn.Module):
                 Reduce('... n d -> ... d', 'mean'),
                 Rearrange('... 1 -> ...')
             )
+
+            self.read_value_aux_loss_weight = read_value_aux_loss_weight
+
+            self.to_read_value_pred = nn.Sequential(
+                Reduce('... n d -> ... d', 'mean'),
+                Rearrange('... 1 -> ...')
+            )
+
         else:
             self.to_pred = nn.Sequential(
                 Rearrange('... 1 -> ...'),
@@ -640,6 +649,7 @@ class HyperTransformerAdapterModel(nn.Module):
         contextual_free_text = None,
         aa_mask = None,
         target = None,
+        read_value = None,
         return_corr_coef = False,
         finetune_enformer = False,
         finetune_enformer_ln_only = False
@@ -741,23 +751,35 @@ class HyperTransformerAdapterModel(nn.Module):
         seq_embed = F.pad(seq_embed, (self.conv_padding, self.conv_padding), value = 0.)
 
         seq_embed = rearrange(seq_embed, 'b n d -> 1 (b n) d')
-        seq_embed_convolved = F.conv1d(seq_embed, hyper_weights, groups = aa_embed.shape[0])
 
+        hyper_weights, hyper_weights_read_value = rearrange(hyper_weights, 'o (r i) k -> o r i k', r = 2).unbind(dim = 1)
+
+        seq_embed_convolved = F.conv1d(seq_embed, hyper_weights, groups = aa_embed.shape[0])
         seq_embed_convolved = rearrange(seq_embed_convolved, '1 b n -> b n 1')
+
+        seq_embed_convolved_read = F.conv1d(seq_embed, hyper_weights_read_value, groups = aa_embed.shape[0])
+        seq_embed_convolved_read = rearrange(seq_embed_convolved_read, '1 b n -> b n 1')
 
         # to *-seq prediction
 
         pred = self.to_pred(seq_embed_convolved)
 
-        if exists(target):
-            if self.binary_target:
-                return self.loss_fn(pred, target.float())
-            else:
-                if return_corr_coef:
-                    return pearson_corr_coef(pred, target)
+        if not exists(target):
+            return pred
 
-                return poisson_loss(pred, target)
+        if not self.binary_target and return_corr_coef:
+            return pearson_corr_coef(pred, target)
 
-        # return prediction if not auto-calculating loss
+        # calculate losses
 
-        return pred
+        if self.binary_target:
+            loss = self.loss_fn(pred, target.float())
+        else:
+            loss = poisson_loss(pred, target)
+
+        if exists(read_value):
+            read_value_pred = self.to_read_value_pred(seq_embed_convolved_read)
+            read_value = rearrange(read_value, 'b 1 -> b')
+            loss = loss + F.smooth_l1_loss(read_value_pred, read_value) * self.read_value_aux_loss_weight
+
+        return loss
