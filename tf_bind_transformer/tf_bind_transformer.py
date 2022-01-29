@@ -1,3 +1,4 @@
+import copy
 import math
 import torch
 import torch.nn.functional as F
@@ -341,7 +342,8 @@ class AttentionAdapterModel(nn.Module):
         dropout = 0.,
         use_squeeze_excite = False,
         binary_target = False,
-        target_mse_loss = False
+        target_mse_loss = False,
+        read_value_aux_loss_weight = 0.1
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
@@ -407,6 +409,8 @@ class AttentionAdapterModel(nn.Module):
                 nn.Linear(enformer_dim, 1),
                 Rearrange('... 1 -> ...')
             )
+
+            self.to_read_value_pred = copy.deepcopy(self.to_pred)
         else:
             self.to_pred = nn.Sequential(
                 nn.Linear(enformer_dim, 1),
@@ -424,6 +428,7 @@ class AttentionAdapterModel(nn.Module):
         contextual_free_text = None,
         aa_mask = None,
         target = None,
+        read_value = None,
         return_corr_coef = False,
         finetune_enformer = False,
         finetune_enformer_ln_only = False
@@ -519,16 +524,23 @@ class AttentionAdapterModel(nn.Module):
 
         pred = self.to_pred(logits)
 
-        if exists(target):
-            if self.binary_target:
-                return self.loss_fn(pred, target.float())
-            else:
-                if return_corr_coef:
-                    return pearson_corr_coef(pred, target)
+        if not exists(target):
+            return pred
 
-                return poisson_loss(pred, target)
+        if exists(target) and return_corr_coef:
+            return pearson_corr_coef(pred, target)
+
+        if self.binary_target:
+            return self.loss_fn(pred, target.float())
+        else:
+            return poisson_loss(pred, target)
 
         # return prediction if not auto-calculating loss
+
+        if exists(read_value):
+            read_value_pred = self.to_read_value_pred(seq_embed_convolved_read)
+            read_value = rearrange(read_value, 'b 1 -> b')
+            loss = loss + F.smooth_l1_loss(read_value_pred, read_value) * self.read_value_aux_loss_weight
 
         return pred
 
