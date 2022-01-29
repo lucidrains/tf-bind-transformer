@@ -29,6 +29,9 @@ def cast_list(val = None):
 def read_bed(path):
     return pl.read_csv(path, sep = '\t', has_headers = False)
 
+def save_bed(df, path):
+    df.to_csv(path, sep = '\t', has_headers = False)
+
 # fetch protein sequences by gene name and uniprot id
 
 class FactorProteinDatasetByUniprotID(Dataset):
@@ -124,11 +127,11 @@ def remap_df_add_experiment_target_cell(df, col = 'column_4'):
 
     return df
 
-def df_add_incremental_idx(df):
+def df_add_incremental_idx(df, insert_idx = 6):
     df = df.clone()
     num_rows = len(df)
     series = pl.Series([*range(num_rows)]).rename('id')
-    df.insert_at_idx(0, series)
+    df.insert_at_idx(insert_idx, series)
     return df
 
 def pl_isin(col, arr):
@@ -194,6 +197,32 @@ def generate_random_ranges_from_fasta(
         filter_bed_file_by_(tmp_file, file, tmp_file)
 
     shutil.move(tmp_file, f'./{output_filename}')
+
+    print('success')
+
+def generate_negative_peaks_per_target(
+    remap_file,
+    *,
+    output_folder = './negative-peaks-per-target',
+    exp_target_cell_type_col = 'column_4'
+):
+    output_folder = Path(output_folder)
+    output_folder.mkdir(exist_ok = True, parents = True)
+
+    df = read_bed(remap_file)
+    df = df_add_incremental_idx(df)
+
+    target_experiments = df.get_column(exp_target_cell_type_col).unique().to_list()
+
+    for target_experiment in target_experiments:
+        filtered_df = df.filter(pl.col(exp_target_cell_type_col) == target_experiment)
+
+        target_bed_path = str(output_folder / f'{target_experiment}.bed')
+        negative_peak_path = str(output_folder / f'{target_experiment}.negative.bed')
+
+        save_bed(filtered_df, target_bed_path)
+        filter_bed_file_by_(remap_file, target_bed_path, negative_peak_path)
+
     print('success')
 
 # dataset for remap data - all peaks
