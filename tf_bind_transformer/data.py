@@ -206,6 +206,7 @@ class RemapAllPeakDataset(Dataset):
         include_targets = None,
         exclude_cell_types = None,
         include_cell_types = None,
+        remap_df_frac = 1.,
         **kwargs
     ):
         super().__init__()
@@ -249,6 +250,9 @@ class RemapAllPeakDataset(Dataset):
             remap_df = remap_df.filter(pl_notin('cell_type', exclude_cell_types))
 
         assert len(remap_df) > 0, 'dataset is empty by filter criteria'
+
+        if remap_df_frac < 1:
+            remap_df = remap_df.sample(frac = remap_df_frac)
 
         self.df = remap_df
         self.fasta = FastaInterval(**kwargs)
