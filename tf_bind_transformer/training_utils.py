@@ -43,6 +43,7 @@ class Trainer(nn.Module):
         grad_clip_norm = None,
         grad_accum_every = 1,
         held_out_targets = [],
+        held_out_cell_types = [],
         context_length = 4096,
         shuffle = False,
     ):
@@ -58,6 +59,7 @@ class Trainer(nn.Module):
             factor_fasta_folder = factor_fasta_folder,
             filter_chromosome_ids = train_chromosome_ids,
             exclude_targets = held_out_targets,
+            exclude_cell_types = held_out_cell_types,
             context_length = context_length
         )
 
@@ -68,6 +70,7 @@ class Trainer(nn.Module):
             factor_fasta_folder = factor_fasta_folder,
             filter_chromosome_ids = train_chromosome_ids,
             exclude_targets = held_out_targets,
+            exclude_cell_types = held_out_cell_types,
             context_length = context_length
         )
 
@@ -76,6 +79,7 @@ class Trainer(nn.Module):
             fasta_file = fasta_file,
             factor_fasta_folder = factor_fasta_folder,
             include_targets = held_out_targets,
+            include_cell_types = held_out_cell_types,
             filter_chromosome_ids = valid_chromosome_ids,
             context_length = context_length
         )
@@ -87,6 +91,7 @@ class Trainer(nn.Module):
             factor_fasta_folder = factor_fasta_folder,
             filter_chromosome_ids = valid_chromosome_ids,
             include_targets = held_out_targets,
+            include_cell_types = held_out_cell_types,
             context_length = context_length
         )
 
