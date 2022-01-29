@@ -124,6 +124,13 @@ def remap_df_add_experiment_target_cell(df, col = 'column_4'):
 
     return df
 
+def df_add_incremental_idx(df):
+    df = df.clone()
+    num_rows = len(df)
+    series = pl.Series([*range(num_rows)]).rename('id')
+    df.insert_at_idx(0, series)
+    return df
+
 def pl_isin(col, arr):
     equalities = list(map(lambda t: pl.col(col) == t, arr))
     return functools.reduce(lambda a, b: a | b, equalities)
