@@ -5,18 +5,19 @@ import hashlib
 from functools import wraps
 from pathlib import Path
 
+def exists(val):
+    return val is not None
+
 # constants
 
 CACHE_PATH = Path(os.getenv('CACHE_PATH', os.path.expanduser('~/.cache.tf.bind.transformer')))
 CACHE_PATH.mkdir(exist_ok = True, parents = True)
 
-CLEAR_CACHE = os.getenv('CLEAR_CACHE', None) is not None
-VERBOSE = os.getenv('VERBOSE', None) is not None
+CLEAR_CACHE = exists(os.getenv('CLEAR_CACHE', None))
+VERBOSE = exists(os.getenv('VERBOSE', None))
 
 # helper functions
 
-def exists(val):
-    return val is not None
 
 def log(s):
     if not VERBOSE:

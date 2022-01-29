@@ -1,9 +1,18 @@
 import torch
+import os
 import logging
 from transformers import AutoTokenizer, AutoModelForMaskedLM, logging
 from tf_bind_transformer.cache_utils import cache_fn, run_once
 
 logging.set_verbosity_error()
+
+def exists(val):
+    return val is not None
+
+CONTEXT_EMBED_USE_CPU = os.getenv('CONTEXT_EMBED_USE_CPU', None) is not None
+
+if CONTEXT_EMBED_USE_CPU:
+    print('calculating context embed only on cpu')
 
 MODELS = dict(
     pubmed = dict(
@@ -22,7 +31,13 @@ def get_contextual_dim(model_name):
 def init_transformer(model_name):
     path = MODELS[model_name]['path']
     GLOBAL_VARIABLES['tokenizer'] = AutoTokenizer.from_pretrained(path)
-    GLOBAL_VARIABLES['model'] = AutoModelForMaskedLM.from_pretrained(path)
+
+    model = AutoModelForMaskedLM.from_pretrained(path)
+
+    if not CONTEXT_EMBED_USE_CPU:
+        model = model.cuda()
+
+    GLOBAL_VARIABLES['model'] = model
 
 @torch.no_grad()
 def tokenize_text(

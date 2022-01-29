@@ -1,7 +1,16 @@
 import torch
+import os
 import esm
 from torch.nn.utils.rnn import pad_sequence
 from tf_bind_transformer.cache_utils import cache_fn, run_once
+
+def exists(val):
+    return val is not None
+
+PROTEIN_EMBED_USE_CPU = os.getenv('PROTEIN_EMBED_USE_CPU', None) is not None
+
+if PROTEIN_EMBED_USE_CPU:
+    print('calculating protein embed only on cpu')
 
 GLOBAL_VARIABLES = dict(model = None)
 
@@ -43,6 +52,10 @@ def tensor_to_aa_str(t):
 def init_esm():
     model, alphabet = esm.pretrained.esm1b_t33_650M_UR50S()
     batch_converter = alphabet.get_batch_converter()
+
+    if not PROTEIN_EMBED_USE_CPU:
+        model = model.cuda()
+
     GLOBAL_VARIABLES['model'] = (model, batch_converter)
 
 def get_single_esm_repr(protein_str):
@@ -55,8 +68,13 @@ def get_single_esm_repr(protein_str):
     if batch_tokens.shape[1] > MAX_LENGTH:
         print(f'warning max length protein esm: {protein_str}')
 
+    batch_tokens = batch_tokens[:, :MAX_LENGTH]
+
+    if not PROTEIN_EMBED_USE_CPU:
+        batch_tokens = batch_tokens.cuda()
+
     with torch.no_grad():
-        results = model(batch_tokens[:, :MAX_LENGTH], repr_layers=[33])
+        results = model(batch_tokens, repr_layers=[33])
 
     token_representations = results['representations'][33]
     representation = token_representations[0][1 : len(protein_str) + 1]
