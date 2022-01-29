@@ -49,7 +49,9 @@ class Trainer(nn.Module):
         shuffle = False,
         train_sample_frac = 1.,
         valid_sample_frac = 1.,
-        remap_sample_frac = 1.
+        remap_sample_frac = 1.,
+        shift_aug_range = (-2, 2),
+        rc_aug = True
     ):
         super().__init__()
         self.model = model
@@ -71,7 +73,9 @@ class Trainer(nn.Module):
             exclude_targets = held_out_targets,
             exclude_cell_types = held_out_cell_types,
             context_length = context_length,
-            remap_df_frac = train_sample_frac
+            remap_df_frac = train_sample_frac,
+            shift_augs = shift_aug_range,
+            rc_aug = rc_aug
         )
 
         self.neg_ds = NegativePeakDataset(
@@ -93,7 +97,9 @@ class Trainer(nn.Module):
             include_cell_types = held_out_cell_types,
             filter_chromosome_ids = valid_chromosome_ids,
             context_length = context_length,
-            remap_df_frac = valid_sample_frac
+            remap_df_frac = valid_sample_frac,
+            shift_augs = shift_aug_range,
+            rc_aug = rc_aug
         )
 
         self.valid_neg_ds = NegativePeakDataset(

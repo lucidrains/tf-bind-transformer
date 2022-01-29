@@ -294,6 +294,14 @@ while True:
 
 ```
 
+## Resources
+
+If you are low on GPU memory, you can save by making sure the protein and contextual embeddings are executed on CPU
+
+```bash
+CONTEXT_EMBED_USE_CPU=1 PROTEIN_EMBED_USE_CPU=1 python train.py
+```
+
 ## Data
 
 Transcription factor dataset

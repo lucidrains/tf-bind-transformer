@@ -9,6 +9,9 @@ logging.set_verbosity_error()
 def exists(val):
     return val is not None
 
+def map_values(fn, dictionary):
+    return {k: fn(v) for k, v in dictionary.items()}
+
 CONTEXT_EMBED_USE_CPU = os.getenv('CONTEXT_EMBED_USE_CPU', None) is not None
 
 if CONTEXT_EMBED_USE_CPU:
@@ -61,6 +64,9 @@ def tokenize_text(
         return_attention_mask = True,
         return_tensors = 'pt'
     )
+
+    if not CONTEXT_EMBED_USE_CPU:
+        encoding = map_values(lambda t: t.cuda(), encoding)
 
     outputs = model(**encoding, output_hidden_states = True)
     hidden_state = outputs.hidden_states[hidden_state_index][0]
