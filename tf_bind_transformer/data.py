@@ -12,7 +12,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 
-from tf_bind_transformer.protein_utils import parse_gene_name
+from tf_bind_transformer.gene_utils import parse_gene_name
 from enformer_pytorch import FastaInterval
 
 from pyfaidx import Fasta

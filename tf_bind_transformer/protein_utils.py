@@ -1,11 +1,16 @@
 import torch
 import os
+import re
 import esm
 from torch.nn.utils.rnn import pad_sequence
+from transformers import AlbertTokenizer, AutoModelForMaskedLM, logging
 from tf_bind_transformer.cache_utils import cache_fn, run_once
 
 def exists(val):
     return val is not None
+
+def map_values(fn, dictionary):
+    return {k: fn(v) for k, v in dictionary.items()}
 
 PROTEIN_EMBED_USE_CPU = os.getenv('PROTEIN_EMBED_USE_CPU', None) is not None
 
@@ -14,7 +19,7 @@ if PROTEIN_EMBED_USE_CPU:
 
 GLOBAL_VARIABLES = dict(model = None)
 
-MAX_LENGTH = 1024
+ESM_MAX_LENGTH = 1024
 ESM_EMBED_DIM = 1280
 
 INT_TO_AA_STR_MAP = {
@@ -65,10 +70,10 @@ def get_single_esm_repr(protein_str):
     data = [('protein', protein_str)]
     batch_labels, batch_strs, batch_tokens = batch_converter(data)
 
-    if batch_tokens.shape[1] > MAX_LENGTH:
+    if batch_tokens.shape[1] > ESM_MAX_LENGTH:
         print(f'warning max length protein esm: {protein_str}')
 
-    batch_tokens = batch_tokens[:, :MAX_LENGTH]
+    batch_tokens = batch_tokens[:, :ESM_MAX_LENGTH]
 
     if not PROTEIN_EMBED_USE_CPU:
         batch_tokens = batch_tokens.cuda()
@@ -99,37 +104,79 @@ def get_esm_repr(proteins, device):
 
     return padded_representations.to(device), masks.to(device)
 
-# for fetching transcription factor sequences
+# get protein dim
 
-GENE_IDENTIFIER_MAP = {
-    'RXR': 'RXRA'
-}
+def get_protein_embed_dim(model_name):
+    if model_name == 'esm':
+        return ESM_EMBED_DIM
+    elif model_name == 'prot_albert':
+        return PROT_ALBERT_DIM
+    else:
+        raise ValueError(f'{model_name} not in supported models')
 
-NAMES_WITH_HYPHENS = {
-    'NKX3-1',
-    'NKX2-1',
-    'NKX2-5',
-    'SS18-SSX'
-}
+# prot-albert 2048 context length
 
-def parse_gene_name(name):
-    if '-' not in name or name in NAMES_WITH_HYPHENS:
-        name = GENE_IDENTIFIER_MAP.get(name, name)
+PROT_ALBERT_PATH = 'Rostlab/prot_albert'
+PROT_ALBERT_DIM = 4096
+PROT_ALBERT_MAX_LENGTH = 2048
 
-        if '_' in name:
-            # for now, if target with modification
-            # just search for the target factor name to the left of the underscore
-            name, *_ = name.split('_')
+GLOBAL_VARIABLES = dict(tokenizer = None, model = None)
 
-        return (name,)
+def protein_str_with_spaces(protein_str):
+    protein_str = re.sub(r"[UZOB]", 'X', protein_str)
+    return ' '.join([*protein_str])
 
-    first, *rest = name.split('-')
+@run_once('init_prot_albert')
+def init_prot_albert():
+    GLOBAL_VARIABLES['tokenizer'] = AlbertTokenizer.from_pretrained(PROT_ALBERT_PATH, do_lower_case = False)
+    model = AutoModelForMaskedLM.from_pretrained(PROT_ALBERT_PATH)
 
-    parsed_rest = []
+    if not PROTEIN_EMBED_USE_CPU:
+        model = model.cuda()
 
-    for name in rest:
-        if len(name) == 1:
-            name = f'{first[:-1]}{name}'
-        parsed_rest.append(name)
+    GLOBAL_VARIABLES['model'] = model
 
-    return tuple([first, *parsed_rest])
+def get_single_prot_albert_repr(
+    protein_str,
+    max_length = PROT_ALBERT_MAX_LENGTH,
+    hidden_state_index = -1
+):
+    init_prot_albert()
+    model = GLOBAL_VARIABLES['model']
+    tokenizer = GLOBAL_VARIABLES['tokenizer']
+
+    encoding = tokenizer.batch_encode_plus(
+        [protein_str_with_spaces(protein_str)],
+        add_special_tokens = True,
+        padding = True,
+        truncation = True,
+        max_length = max_length,
+        return_attention_mask = True,
+        return_tensors = 'pt'
+    )
+
+    if not PROTEIN_EMBED_USE_CPU:
+        encoding = map_values(lambda t: t.cuda(), encoding)
+
+    outputs = model(**encoding, output_hidden_states = True)
+    hidden_state = outputs.hidden_states[hidden_state_index][0]
+    return hidden_state
+
+def get_prot_albert_repr(
+    proteins,
+    device,
+    max_length = PROT_ALBERT_MAX_LENGTH,
+    hidden_state_index = -1
+):
+    if isinstance(proteins, str):
+        proteins = [proteins]
+
+    get_protein_repr_fn = cache_fn(get_single_prot_albert_repr, path = f'proteins/prot_albert')
+
+    representations = [get_protein_repr_fn(protein, max_length = max_length, hidden_state_index = hidden_state_index) for protein in proteins]
+
+    lengths = [seq_repr.shape[0] for seq_repr in representations]
+    masks = torch.arange(max(lengths), device = device)[None, :] <  torch.tensor(lengths, device = device)[:, None]
+    padded_representations = pad_sequence(representations, batch_first = True)
+
+    return padded_representations.to(device), masks.to(device)

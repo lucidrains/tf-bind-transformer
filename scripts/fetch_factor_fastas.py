@@ -1,7 +1,7 @@
 import requests
 from pathlib import Path
 import polars as pl
-from tf_bind_transformer.protein_utils import parse_gene_name
+from tf_bind_transformer.gene_utils import parse_gene_name
 from tf_bind_transformer.data import read_bed
 
 UNIPROT_URL = 'http://www.uniprot.org'
