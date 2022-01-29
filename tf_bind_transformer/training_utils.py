@@ -104,7 +104,7 @@ class Trainer(nn.Module):
         self.validate_every = validate_every
         self.register_buffer('steps', torch.Tensor([0.]))
 
-    def forward(self):
+    def forward(self, finetune_enformer_ln_only = True, **kwargs):
         curr_step = int(self.steps.item())
         self.model.train()
 
@@ -118,7 +118,8 @@ class Trainer(nn.Module):
                 target = binary_target,
                 aa = tf_aa,
                 contextual_free_text = contextual_texts,
-                finetune_enformer_ln_only = True
+                finetune_enformer_ln_only = finetune_enformer_ln_only,
+                **kwargs
             )
 
             total_train_loss += loss.item()

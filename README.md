@@ -256,13 +256,6 @@ from enformer_pytorch import load_pretrained_model
 
 from tf_bind_transformer import HyperTransformerAdapterModel, Trainer
 
-# constants
-
-BATCH_SIZE = 2
-GRAD_ACCUM_STEPS = 8
-VALIDATE_EVERY = 250
-GRAD_CLIP_MAX_NORM = 1.5
-
 # instantiate enformer or load pretrained
 
 enformer = load_pretrained_model('preview', target_length = -1)
@@ -285,6 +278,8 @@ trainer = Trainer(
     model,
     batch_size = 2,                                   # batch size
     grad_accum_every = 8,                             # gradient accumulation steps
+    grad_clip_norm = 2.0,                             # gradient clipping
+    validate_every = 250,
     remap_bed_file = './remap2022_all.bed',           # path to remap bed peaks
     negative_bed_file = './generated-non-peaks.bed',  # path to generated non-peaks
     factor_fasta_folder = './tfactor.fastas',         # path to factor fasta files
