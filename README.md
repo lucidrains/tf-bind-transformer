@@ -364,11 +364,9 @@ $ CLEAR_CACHE=1 python train.py
 - [x] grad clipping
 - [x] add a safe initialization whereby rows of dataframe with targets not found in the tfactor fasta folder will be filtered out
 - [x] add accuracy metric to fine tune script
-- [ ] normalization of interactions between genetic and amino acid sequence
-- [ ] hyperparameters for different types of normalization on fine grained interactions feature map
+- [x] master trainer class that handles both training / validation splitting, efficient instantiation of dataframe, filtering etc
+- [x] write a simple trainer class that takes care of the training loop
 - [ ] support for custom transformers other than enformer
-- [ ] derive gender of cell from absence of chrY in dataframe and add to context
-- [ ] write a simple trainer class that takes care of the training loop
 - [ ] warmup in training loop
 - [ ] mixed precision
 - [ ] use wandb for experiment tracking
@@ -377,7 +375,6 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] create faster protein and context embedding derivation by optionally moving model to gpu and back to cpu when done
 - [ ] explore protein model fine-tuning of layernorm
 - [ ] use ProtTrans for longer context proteins, look into AF2
-- [ ] master dataset class that handles both training / validation splitting, efficient instantiation of dataframe, filtering etc
 - [ ] auto-auroc calc
 - [ ] k-fold cross validation
 - [ ] output attention intermediates (or convolution output for hypertransformer), for interpreting binding site
