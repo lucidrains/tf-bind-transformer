@@ -1,7 +1,8 @@
 import torch
 from torch import nn
 from torch.optim import AdamW
-from tf_bind_transformer.data import read_bed, collate_dl_outputs, get_dataloader, RemapAllPeakDataset, NegativePeakDataset
+from tf_bind_transformer.data import read_bed, collate_dl_outputs, get_dataloader, remap_df_add_experiment_target_cell
+from tf_bind_transformer.data import RemapAllPeakDataset, NegativePeakDataset
 
 def exists(val):
     return val is not None
@@ -57,6 +58,8 @@ class Trainer(nn.Module):
 
         if remap_sample_frac < 1:
             remap_df = remap_df.sample(frac = remap_sample_frac)
+
+        remap_df = remap_df_add_experiment_target_cell(remap_df)
 
         neg_df = read_bed(negative_bed_file)
 
