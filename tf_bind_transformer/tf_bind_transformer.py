@@ -130,7 +130,7 @@ class AdapterModel(nn.Module):
         latent_dim = 64,
         latent_heads = 32,
         aa_embed_dim = None,
-        contextual_embed_dim = 256,
+        contextual_embed_dim = None,
         use_esm_embeds = False,
         use_free_text_context = False,
         free_text_context_encoder = 'pubmed',
@@ -151,7 +151,7 @@ class AdapterModel(nn.Module):
         assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
         self.free_text_embed_method = free_text_embed_method
         self.use_free_text_context = use_free_text_context
-        contextual_embed_dim = get_contextual_dim(free_text_context_encoder)
+        contextual_embed_dim = default(contextual_embed_dim, get_contextual_dim(free_text_context_encoder))
 
         # protein embedding related variables
 
@@ -331,7 +331,7 @@ class AttentionAdapterModel(nn.Module):
         *,
         enformer,
         aa_embed_dim = None,
-        contextual_embed_dim = 256,
+        contextual_embed_dim = None,
         cross_attn_dim_head = 64,
         cross_attn_heads = 8,
         use_esm_embeds = False,
@@ -355,7 +355,7 @@ class AttentionAdapterModel(nn.Module):
         assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
         self.free_text_embed_method = free_text_embed_method
         self.use_free_text_context = use_free_text_context
-        contextual_embed_dim = get_contextual_dim(free_text_context_encoder)
+        contextual_embed_dim = default(contextual_embed_dim, get_contextual_dim(free_text_context_encoder))
 
         # protein embedding related variables
 
@@ -542,7 +542,7 @@ class HyperTransformerAdapterModel(nn.Module):
         *,
         enformer,
         aa_embed_dim = None,
-        contextual_embed_dim = 256,
+        contextual_embed_dim = None,
         self_attn_dim_head = 64,
         self_attn_heads = 8,
         hyper_conv_kernel_size = 7,
@@ -568,7 +568,7 @@ class HyperTransformerAdapterModel(nn.Module):
         assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
         self.free_text_embed_method = free_text_embed_method
         self.use_free_text_context = use_free_text_context
-        contextual_embed_dim = get_contextual_dim(free_text_context_encoder)
+        contextual_embed_dim = default(contextual_embed_dim, get_contextual_dim(free_text_context_encoder))
 
         # protein embedding related variables
 

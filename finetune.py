@@ -1,5 +1,5 @@
 from enformer_pytorch import load_pretrained_model
-from tf_bind_transformer import HyperTransformerAdapterModel, Trainer
+from tf_bind_transformer import HyperTransformerAdapterModel,AttentionAdapterModel, Trainer
 
 # instantiate enformer or load pretrained
 
@@ -7,7 +7,7 @@ enformer = load_pretrained_model('preview', target_length = -1)
 
 # instantiate model wrapper that takes in enformer
 
-model = HyperTransformerAdapterModel(
+model = AttentionAdapterModel(
     enformer = enformer,
     use_esm_embeds = True,
     use_free_text_context = True,
@@ -36,7 +36,7 @@ NON_PEAK_PATH = './generated-non-peaks.bed'
 TRAIN_CHROMOSOMES = [*range(1, 24, 2), 'X'] # train on odd chromosomes
 VALID_CHROMOSOMES = [*range(2, 24, 2)]      # validate on even
 
-HELD_OUT_TARGET = ['SOX2']
+HELD_OUT_TARGET = ['AFF4']
 
 # trainer class for fine-tuning
 

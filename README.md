@@ -85,7 +85,7 @@ enformer = Enformer(
     dim = 1536,
     depth = 2,
     target_length = 256
-)negat
+)
 
 model = AdapterModel(
     enformer = enformer,
