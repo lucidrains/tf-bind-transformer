@@ -215,6 +215,9 @@ class RemapAllPeakDataset(Dataset):
         if not exists(remap_df):
             remap_df = read_bed(bed_file)
 
+        if remap_df_frac < 1:
+            remap_df = remap_df.sample(frac = remap_df_frac)
+
         dataset_chr_ids = CHR_IDS
 
         if exists(filter_chromosome_ids):
@@ -250,9 +253,6 @@ class RemapAllPeakDataset(Dataset):
             remap_df = remap_df.filter(pl_notin('cell_type', exclude_cell_types))
 
         assert len(remap_df) > 0, 'dataset is empty by filter criteria'
-
-        if remap_df_frac < 1:
-            remap_df = remap_df.sample(frac = remap_df_frac)
 
         self.df = remap_df
         self.fasta = FastaInterval(**kwargs)

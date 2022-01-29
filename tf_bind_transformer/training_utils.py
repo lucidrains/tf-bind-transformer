@@ -47,12 +47,17 @@ class Trainer(nn.Module):
         context_length = 4096,
         shuffle = False,
         train_sample_frac = 1.,
-        valid_sample_frac = 1.
+        valid_sample_frac = 1.,
+        remap_sample_frac = 1.
     ):
         super().__init__()
         self.model = model
 
         remap_df = read_bed(remap_bed_file)
+
+        if remap_sample_frac < 1:
+            remap_df = remap_df.sample(frac = remap_sample_frac)
+
         neg_df = read_bed(negative_bed_file)
 
         self.ds = RemapAllPeakDataset(
