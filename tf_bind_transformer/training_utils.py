@@ -173,7 +173,7 @@ class Trainer(nn.Module):
                 valid_accuracy = ((valid_logits.sigmoid() > 0.5).int() == binary_target).sum() / (binary_target.numel())
 
                 total_valid_loss += valid_loss.item()
-                total_valid_accuracies = valid_accuracy.item()
+                total_valid_accuracies += valid_accuracy.item()
 
             avg_valid_loss = total_valid_loss / self.grad_accum_every
             avg_valid_accuracy = total_valid_accuracies / self.grad_accum_every
