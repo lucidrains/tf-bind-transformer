@@ -107,18 +107,22 @@ def get_chr_names(ids):
 CHR_IDS = set([*range(1, 23), 'X'])
 CHR_NAMES = get_chr_names(CHR_IDS)
 
-def remap_df_add_experiment_target_cell_(df, col = 'column_4'):
+def remap_df_add_experiment_target_cell(df, col = 'column_4'):
+    df = df.clone()
+
     exp_id = df.select([pl.col(col).str.extract(r"^([\w\-]+)\.*")])
-    targets = df.select([pl.col(col).str.extract(r"[\w\-]+\.([\w\-]+)\.[\w\-]+")])
-    cell_type = df.select([pl.col(col).str.extract(r"^.*\.([\w\-]+)$")])
-
     exp_id = exp_id.rename({col: 'experiment'}).to_series(0)
-    targets = targets.rename({col: 'target'}).to_series(0)
-    cell_type = cell_type.rename({col: 'cell_type'}).to_series(0)
-
     df.insert_at_idx(3, exp_id)
+
+    targets = df.select([pl.col(col).str.extract(r"[\w\-]+\.([\w\-]+)\.[\w\-]+")])
+    targets = targets.rename({col: 'target'}).to_series(0)
     df.insert_at_idx(3, targets)
+
+    cell_type = df.select([pl.col(col).str.extract(r"^.*\.([\w\-]+)$")])
+    cell_type = cell_type.rename({col: 'cell_type'}).to_series(0)
     df.insert_at_idx(3, cell_type)
+
+    return df
 
 def pl_isin(col, arr):
     equalities = list(map(lambda t: pl.col(col) == t, arr))
@@ -138,7 +142,7 @@ def filter_bed_file_by_(bed_file_1, bed_file_2, output_file):
 
 def filter_df_by_tfactor_fastas(df, folder, derive_target_col = False):
     if derive_target_col:
-        remap_df_add_experiment_target_cell_(df)
+        df = remap_df_add_experiment_target_cell(df)
 
     files = [*Path(folder).glob('**/*.fasta')]
     present_target_names = set([f.stem.split('.')[0] for f in files])
@@ -194,8 +198,9 @@ class RemapAllPeakDataset(Dataset):
     def __init__(
         self,
         *,
-        bed_file,
         factor_fasta_folder,
+        bed_file = None,
+        remap_df = None,
         filter_chromosome_ids = None,
         exclude_targets = None,
         include_targets = None,
@@ -204,15 +209,18 @@ class RemapAllPeakDataset(Dataset):
         **kwargs
     ):
         super().__init__()
-        df = read_bed(bed_file)
+        assert exists(remap_df) ^ exists(bed_file), 'either remap bed file or remap dataframe must be passed in'
+
+        if not exists(remap_df):
+            remap_df = read_bed(bed_file)
 
         dataset_chr_ids = CHR_IDS
 
         if exists(filter_chromosome_ids):
             dataset_chr_ids = dataset_chr_ids.intersection(set(filter_chromosome_ids))
 
-        df = df.filter(pl_isin('column_1', get_chr_names(dataset_chr_ids)))
-        df = filter_df_by_tfactor_fastas(df, factor_fasta_folder, derive_target_col = True)
+        remap_df = remap_df.filter(pl_isin('column_1', get_chr_names(dataset_chr_ids)))
+        remap_df = filter_df_by_tfactor_fastas(remap_df, factor_fasta_folder, derive_target_col = True)
 
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)
 
@@ -223,10 +231,10 @@ class RemapAllPeakDataset(Dataset):
         exclude_targets = cast_list(exclude_targets)
 
         if include_targets:
-            df = df.filter(pl_isin('target', include_targets))
+            remap_df = remap_df.filter(pl_isin('target', include_targets))
 
         if exclude_targets:
-            df = df.filter(pl_notin('target', exclude_targets))
+            remap_df = remap_df.filter(pl_notin('target', exclude_targets))
 
         # filter dataset by inclusion and exclusion list of cell types
         # same logic as for targets
@@ -235,14 +243,14 @@ class RemapAllPeakDataset(Dataset):
         exclude_cell_types = cast_list(exclude_cell_types)
 
         if include_cell_types:
-            df = df.filter(pl_isin('cell_type', include_cell_types))
+            remap_df = remap_df.filter(pl_isin('cell_type', include_cell_types))
 
         if exclude_cell_types:
-            df = df.filter(pl_notin('cell_type', exclude_cell_types))
+            remap_df = remap_df.filter(pl_notin('cell_type', exclude_cell_types))
 
-        assert len(df) > 0, 'dataset is empty by filter criteria'
+        assert len(remap_df) > 0, 'dataset is empty by filter criteria'
 
-        self.df = df
+        self.df = remap_df
         self.fasta = FastaInterval(**kwargs)
 
     def __len__(self):
@@ -267,9 +275,11 @@ class NegativePeakDataset(Dataset):
     def __init__(
         self,
         *,
-        negative_bed_file,
-        remap_bed_file,
         factor_fasta_folder,
+        negative_bed_file = None,
+        remap_bed_file = None,
+        remap_df = None,
+        negative_df = None,
         filter_chromosome_ids = None,
         exclude_targets = None,
         include_targets = None,
@@ -278,9 +288,20 @@ class NegativePeakDataset(Dataset):
         **kwargs
     ):
         super().__init__()
-        neg_df = read_bed(negative_bed_file)
+        assert exists(remap_df) ^ exists(remap_bed_file), 'either remap bed file or remap dataframe must be passed in'
+        assert exists(negative_df) ^ exists(negative_bed_file), 'either negative bed file or negative dataframe must be passed in'
 
-        remap_df = read_bed(remap_bed_file)
+        # instantiate dataframes if not passed in
+
+        if not exists(remap_df):
+            remap_df = read_bed(remap_bed_file)
+
+        neg_df = negative_df
+        if not exists(negative_df):
+            neg_df = read_bed(negative_bed_file)
+
+        # filter remap dataframe
+
         remap_df = filter_df_by_tfactor_fastas(remap_df, factor_fasta_folder, derive_target_col = True)
 
         dataset_chr_ids = CHR_IDS
