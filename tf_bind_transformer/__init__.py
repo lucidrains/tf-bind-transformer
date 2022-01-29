@@ -1,1 +1,2 @@
 from tf_bind_transformer.tf_bind_transformer import AdapterModel, AttentionAdapterModel, HyperTransformerAdapterModel
+from tf_bind_transformer.training_utils import Trainer
