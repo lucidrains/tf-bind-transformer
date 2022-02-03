@@ -19,9 +19,11 @@ setup(
   ],
   install_requires=[
     'biopython',
+    'click',
     'einops>=0.3',
     'enformer-pytorch>=0.3.1',
     'fair-esm',
+    'logavgexp-pytorch',
     'polars',
     'torch>=1.6',
     'transformers>=4.0',
