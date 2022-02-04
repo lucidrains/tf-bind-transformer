@@ -11,6 +11,6 @@ if [ ! -f $filename ]; then
     exit 1
 fi
 
-awk -v l="$pad_len" -F '\t' '{X=l; mid=(int($2)+int($3))/2;printf("%s\t%d\t%d\t%d\n",$1,(mid-X<0?0:mid-X),mid+X,NR);}' $filename > $output_filename
+awk -v l="$pad_len" -F '\t' '{X=l; mid=(int($2)+int($3))/2;printf("%s\t%d\t%d\t%s\t%d\n",$1,(mid-X<0?0:mid-X),mid+X,$4,NR);}' $filename > $output_filename
 
 echo 'success'

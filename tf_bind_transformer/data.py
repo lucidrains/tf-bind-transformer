@@ -30,7 +30,7 @@ def read_bed(path):
     return pl.read_csv(path, sep = '\t', has_headers = False)
 
 def save_bed(df, path):
-    df.to_csv(path, sep = '\t', has_headers = False)
+    df.to_csv(path, sep = '\t', has_header = False)
 
 # fetch protein sequences by gene name and uniprot id
 
