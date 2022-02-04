@@ -33,6 +33,11 @@ def read_bed(path):
 def save_bed(df, path):
     df.to_csv(path, sep = '\t', has_header = False)
 
+def parse_exp_target_cell(exp_target_cell):
+    experiment, target, *cell_type = exp_target_cell.split('.')
+    cell_type = '.'.join(cell_type) # handle edge case where cell type contains periods
+    return experiment, target, cell_type
+
 # fetch protein sequences by gene name and uniprot id
 
 class FactorProteinDatasetByUniprotID(Dataset):
@@ -295,8 +300,7 @@ class RemapAllPeakDataset(Dataset):
     def __getitem__(self, ind):
         chr_name, begin, end, _, _, _, experiment_target_cell_type, reading, *_ = self.df.row(ind)
 
-        experiment, target, *cell_type = experiment_target_cell_type.split('.')
-        cell_type = '.'.join(cell_type) # handle edge case where cell type contains periods
+        experiment, target, cell_type = parse_exp_target_cell(experiment_target_cell_type)
 
         seq = self.fasta(chr_name, begin, end)
         aa_seq = self.factor_ds[target]
@@ -321,6 +325,7 @@ class NegativePeakDataset(Dataset):
         include_targets = None,
         exclude_cell_types = None,
         include_cell_types = None,
+        exp_target_cell_column = 'column_4',
         **kwargs
     ):
         super().__init__()
@@ -344,7 +349,6 @@ class NegativePeakDataset(Dataset):
 
         if exists(filter_chromosome_ids):
             dataset_chr_ids = dataset_chr_ids.intersection(set(filter_chromosome_ids))
-
 
         neg_df = neg_df.filter(pl_isin('column_1', get_chr_names(dataset_chr_ids)))
 
@@ -377,6 +381,16 @@ class NegativePeakDataset(Dataset):
         if exclude_cell_types:
             self.cell_types = list(set(self.cell_types) - set(exclude_cell_types))
 
+        # get all exp-target-cells and filter by above
+        exp_target_cells = remap_df.get_column(exp_target_cell_column).unique().to_list()
+
+        def filter_exp_target_cells(el):
+            experiment, target, cell_type = parse_exp_target_cell(el)
+            return experiment in self.experiments and target in self.targets and cell_type in self.cell_types
+
+        self.filtered_exp_target_cells = list(filter(filter_exp_target_cells, exp_target_cells))
+        assert len(self.filtered_exp_target_cells), 'no experiment-target-cell left for hard negative set'
+
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)
         self.fasta = FastaInterval(**kwargs)
 
@@ -386,9 +400,8 @@ class NegativePeakDataset(Dataset):
     def __getitem__(self, ind):
         chr_name, begin, end = self.neg_df.row(ind)
 
-        experiment = choice(self.experiments)
-        target = choice(self.targets)
-        cell_type = choice(self.cell_types)
+        random_exp_target_cell_type = choice(self.filtered_exp_target_cells)
+        experiment, target, cell_type = parse_exp_target_cell(random_exp_target_cell_type)
 
         seq = self.fasta(chr_name, begin, end)
         aa_seq = self.factor_ds[target]
