@@ -127,13 +127,6 @@ def remap_df_add_experiment_target_cell(df, col = 'column_4'):
 
     return df
 
-def df_add_incremental_idx(df, insert_idx = 6):
-    df = df.clone()
-    num_rows = len(df)
-    series = pl.Series([*range(num_rows)]).rename('id')
-    df.insert_at_idx(insert_idx, series)
-    return df
-
 def pl_isin(col, arr):
     equalities = list(map(lambda t: pl.col(col) == t, arr))
     return functools.reduce(lambda a, b: a | b, equalities)
@@ -210,8 +203,6 @@ def generate_negative_peaks_per_target(
     output_folder.mkdir(exist_ok = True, parents = True)
 
     df = read_bed(remap_file)
-    df = df_add_incremental_idx(df)
-
     target_experiments = df.get_column(exp_target_cell_type_col).unique().to_list()
 
     for target_experiment in target_experiments:
@@ -222,6 +213,7 @@ def generate_negative_peaks_per_target(
 
         save_bed(filtered_df, target_bed_path)
         filter_bed_file_by_(remap_file, target_bed_path, negative_peak_path)
+        shutil.rmtree(target_bed_path, ignore_errors = True)
 
     print('success')
 
