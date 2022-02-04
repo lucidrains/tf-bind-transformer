@@ -5,6 +5,7 @@ import functools
 import polars as pl
 from collections import defaultdict
 
+import os
 import shutil
 import numpy as np
 
@@ -197,7 +198,8 @@ def generate_negative_peaks_per_target(
     remap_file,
     *,
     output_folder = './negative-peaks-per-target',
-    exp_target_cell_type_col = 'column_4'
+    exp_target_cell_type_col = 'column_4',
+    id_column = 'column_5'
 ):
     output_folder = Path(output_folder)
     output_folder.mkdir(exist_ok = True, parents = True)
@@ -213,7 +215,12 @@ def generate_negative_peaks_per_target(
 
         save_bed(filtered_df, target_bed_path)
         filter_bed_file_by_(remap_file, target_bed_path, negative_peak_path)
-        shutil.rmtree(target_bed_path, ignore_errors = True)
+        os.remove(target_bed_path)
+
+        neg_df = read_bed(negative_peak_path)
+        np_array = neg_df.get_column(id_column).to_numpy()
+        np.save(str(output_folder / target_experiment), np_array)
+        os.remove(negative_peak_path)
 
     print('success')
 
