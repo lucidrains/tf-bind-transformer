@@ -37,6 +37,14 @@ def null_context():
 def l2norm(t):
     return F.normalize(t, dim = -1)
 
+def fourier_encode(x, dims, theta = 20000):
+    device, dtype = x.device, x.dtype
+    emb = math.log(theta) / (dims // 2)
+    emb = torch.exp(torch.arange(dims // 2, device = device) * -emb)
+    emb = rearrange(x, 'n -> n 1') * rearrange(emb, 'd -> 1 d')
+    emb = torch.cat((emb.sin(), emb.cos()), dim = -1)
+    return emb
+
 # genetic sequence caching enformer forward decorator
 
 def cache_enformer_forward(fn):
@@ -99,6 +107,52 @@ class SqueezeExcitation(nn.Module):
         x = x * rearrange(gate, 'b d -> b 1 d').sigmoid()
         return x
 
+# read value MLP for calculating auxiliary loss
+
+class ReadValueMLP(nn.Module):
+    def __init__(
+        self,
+        dim,
+        *,
+        fourier_dims = 256,
+        norm_factor_fourier = 50,
+        norm_factor_linear = 8000
+    ):
+        super().__init__()
+        self.fourier_dims = fourier_dims
+        self.norm_factor_fourier = norm_factor_fourier
+        self.norm_factor_linear = norm_factor_linear
+
+        self.logits_norm = nn.Sequential(
+            Reduce('b n d -> b d', 'mean'),
+            nn.LayerNorm(dim)
+        )
+
+        self.mlp = nn.Sequential(
+            nn.Linear(dim + fourier_dims + 1, dim * 2),
+            nn.GELU(),
+            nn.Linear(dim * 2, 1),
+            Rearrange('... 1 -> ...')
+        )
+
+    def forward(self, logits, peaks_nr, read_value):
+        logits = self.logits_norm(logits)
+
+        peaks_nr = rearrange(peaks_nr, '... -> (...)')
+        peaks_nr_encoded = fourier_encode(peaks_nr / self.norm_factor_fourier, self.fourier_dims)
+        peaks_nr_normed = rearrange(peaks_nr, '... -> ... 1') / self.norm_factor_linear
+
+        peaks_nr_encoded_with_self = torch.cat((peaks_nr_normed, peaks_nr_encoded), dim = -1)
+
+        logits_with_peaks = torch.cat((logits, peaks_nr_encoded_with_self), dim = -1)
+
+        pred = self.mlp(logits_with_peaks)
+        read_value = rearrange(read_value, '... -> (...)')
+
+        return F.mse_loss(pred, read_value)
+
+# FILIP adapter model
+
 class AdapterModel(nn.Module):
     def __init__(
         self,
@@ -114,7 +168,11 @@ class AdapterModel(nn.Module):
         free_text_embed_method = 'cls',
         dropout = 0.,
         binary_target = False,
-        target_mse_loss = False
+        target_mse_loss = False,
+        aux_read_value_loss = False,
+        read_value_aux_loss_weight = 0.1,
+        fourier_dims = 256,
+        **kwargs
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
@@ -158,6 +216,8 @@ class AdapterModel(nn.Module):
         # to prediction
 
         self.binary_target = binary_target
+        self.aux_read_value_loss = aux_read_value_loss
+        self.read_value_aux_loss_weight = read_value_aux_loss_weight
 
         if binary_target:
             self.loss_fn = F.binary_cross_entropy_with_logits if not target_mse_loss else F.mse_loss
@@ -168,12 +228,24 @@ class AdapterModel(nn.Module):
                 nn.Linear(latent_heads, 1),
                 Rearrange('... 1 -> ...')
             )
+
+            self.to_read_value_aux_loss = ReadValueMLP(
+                dim = enformer_dim,
+                fourier_dims = fourier_dims
+            )
+
         else:
             self.to_pred = nn.Sequential(
                 nn.Linear(latent_heads, 1),
                 Rearrange('... 1 -> ...'),
                 nn.Softplus()
             )
+
+    def combine_losses(self, loss, aux_loss):
+        if not self.aux_read_value_loss:
+            return loss
+
+        return loss + self.read_value_aux_loss_weight * aux_loss
 
     def forward(
         self,
@@ -185,6 +257,8 @@ class AdapterModel(nn.Module):
         contextual_free_text = None,
         aa_mask = None,
         target = None,
+        read_value = None,
+        peaks_nr = None,
         return_corr_coef = False,
         finetune_enformer = False,
         finetune_enformer_ln_only = False
@@ -288,17 +362,37 @@ class AdapterModel(nn.Module):
 
         pred = self.to_pred(logits)
 
-        if exists(target):
-            if self.binary_target:
-                return self.loss_fn(pred, target.float())
+        if not exists(target):
+            return pred
 
-            else:
-                if return_corr_coef:
-                    return pearson_corr_coef(pred, target)
+        if exists(target) and return_corr_coef:
+            return pearson_corr_coef(pred, target)
 
-                return poisson_loss(pred, target)
+        if exists(target) and not self.binary_target:
+            return poisson_loss(pred, target)
 
-        return pred
+        if not exists(target):
+            return pred
+
+        # binary loss w/ optional auxiliary loss
+
+        loss = self.loss_fn(pred, target.float())
+
+        if not self.aux_read_value_loss:
+            return loss, 0.
+
+        # return prediction if not auto-calculating loss
+
+        assert exists(read_value) and exists(peaks_nr), 'peaks NR must be supplied if doing auxiliary read value loss'
+
+        aux_loss = self.to_read_value_aux_loss(
+            logits,
+            peaks_nr,
+            read_value = read_value
+        )
+
+        return loss, aux_loss
+
 
 # cross attention based tf-bind-transformer
 
@@ -319,7 +413,9 @@ class AttentionAdapterModel(nn.Module):
         use_squeeze_excite = False,
         binary_target = False,
         target_mse_loss = False,
-        read_value_aux_loss_weight = 0.1
+        aux_read_value_loss = False,
+        read_value_aux_loss_weight = 0.1,
+        fourier_dims = 256
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
@@ -375,6 +471,8 @@ class AttentionAdapterModel(nn.Module):
         # to predictions
 
         self.binary_target = binary_target
+        self.aux_read_value_loss = aux_read_value_loss
+        self.read_value_aux_loss_weight = read_value_aux_loss_weight
 
         if binary_target:
             self.loss_fn = F.binary_cross_entropy_with_logits if not target_mse_loss else F.mse_loss
@@ -386,13 +484,22 @@ class AttentionAdapterModel(nn.Module):
                 Rearrange('... 1 -> ...')
             )
 
-            self.to_read_value_pred = copy.deepcopy(self.to_pred)
+            self.to_read_value_aux_loss = ReadValueMLP(
+                dim = enformer_dim,
+                fourier_dims = fourier_dims
+            )
         else:
             self.to_pred = nn.Sequential(
                 nn.Linear(enformer_dim, 1),
                 Rearrange('... 1 -> ...'),
                 nn.Softplus()
             )
+
+    def combine_losses(self, loss, aux_loss):
+        if not self.aux_read_value_loss:
+            return loss
+
+        return loss + self.read_value_aux_loss_weight * aux_loss
 
     def forward(
         self,
@@ -405,6 +512,7 @@ class AttentionAdapterModel(nn.Module):
         aa_mask = None,
         target = None,
         read_value = None,
+        peaks_nr = None,
         return_corr_coef = False,
         finetune_enformer = False,
         finetune_enformer_ln_only = False
@@ -506,268 +614,27 @@ class AttentionAdapterModel(nn.Module):
         if exists(target) and return_corr_coef:
             return pearson_corr_coef(pred, target)
 
-        if self.binary_target:
-            return self.loss_fn(pred, target.float())
-        else:
+        if exists(target) and not self.binary_target:
             return poisson_loss(pred, target)
-
-        # return prediction if not auto-calculating loss
-
-        if exists(read_value):
-            read_value_pred = self.to_read_value_pred(seq_embed_convolved_read)
-            read_value = rearrange(read_value, 'b 1 -> b')
-            loss = loss + F.smooth_l1_loss(read_value_pred, read_value) * self.read_value_aux_loss_weight
-
-        return pred
-
-# contextual transformer producing weights of convolution on genetic embeddings
-# inspiration from HyperTransformers
-# https://arxiv.org/abs/2201.04182
-
-class HyperTransformerAdapterModel(nn.Module):
-    def __init__(
-        self,
-        *,
-        enformer,
-        aa_embed_dim = None,
-        contextual_embed_dim = None,
-        self_attn_dim_head = 64,
-        self_attn_heads = 8,
-        hyper_conv_kernel_size = 7,
-        use_esm_embeds = False,
-        use_free_text_context = False,
-        free_text_context_encoder = 'pubmed',
-        free_text_embed_method = 'cls',
-        dropout = 0.,
-        use_squeeze_excite = False,
-        binary_target = False,
-        target_mse_loss = False,
-        read_value_aux_loss_weight = 0.1
-    ):
-        super().__init__()
-        assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
-        self.enformer = enformer
-        enformer_dim = enformer.dim * 2
-
-        self.norm_seq_embed = nn.LayerNorm(enformer_dim)
-
-        # contextual embedding related variables
-
-        assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
-        self.free_text_embed_method = free_text_embed_method
-        self.use_free_text_context = use_free_text_context
-        contextual_embed_dim = default(contextual_embed_dim, get_contextual_dim(free_text_context_encoder))
-
-        # protein embedding related variables
-
-        self.use_esm_embeds = use_esm_embeds
-
-        if use_esm_embeds:
-            aa_embed_dim = ESM_EMBED_DIM
-        else:
-            assert exists(aa_embed_dim), 'AA embedding dimensions must be set if not using ESM'
-
-        # film
-
-        condition_klass = SqueezeExcitation if use_squeeze_excite else FiLM
-
-        self.cond_genetic  = condition_klass(contextual_embed_dim, enformer_dim)
-        self.cond_protein  = condition_klass(contextual_embed_dim, aa_embed_dim)
-
-        # self attention
-
-        self.scale = self_attn_dim_head ** -0.5
-        self.heads = self_attn_heads
-        inner_dim = self_attn_dim_head * self_attn_heads
-
-        assert (hyper_conv_kernel_size % 2) == 1, 'hyper conv kernel size must be odd'
-        self.conv_padding = hyper_conv_kernel_size // 2
-        self.conv_weight_slices_queries = nn.Parameter(torch.randn(hyper_conv_kernel_size, aa_embed_dim))
-
-        self.to_queries = nn.Linear(aa_embed_dim, inner_dim, bias = False)
-        self.to_keys = nn.Linear(aa_embed_dim, inner_dim, bias = False)
-        self.to_values = nn.Linear(aa_embed_dim, inner_dim, bias = False)
-        self.to_out = nn.Linear(inner_dim, aa_embed_dim)
-
-        self.attn_dropout = nn.Dropout(dropout)
-
-        self.feedforward = nn.Sequential(
-            nn.LayerNorm(aa_embed_dim),
-            nn.Linear(aa_embed_dim, aa_embed_dim * 2),
-            nn.GELU(),
-            nn.Linear(aa_embed_dim * 2, aa_embed_dim)
-        )
-
-        self.to_hyper_weights = nn.Sequential(
-            nn.LayerNorm(aa_embed_dim),
-            nn.Linear(aa_embed_dim, enformer_dim * 2)
-        )
-        # to predictions
-
-        self.binary_target = binary_target
-
-        if binary_target:
-            self.loss_fn = F.binary_cross_entropy_with_logits if not target_mse_loss else F.mse_loss
-
-            self.to_pred = nn.Sequential(
-                Reduce('... n d -> ... d', 'mean'),
-                Rearrange('... 1 -> ...')
-            )
-
-            self.read_value_aux_loss_weight = read_value_aux_loss_weight
-
-            self.to_read_value_pred = nn.Sequential(
-                Reduce('... n d -> ... d', 'mean'),
-                Rearrange('... 1 -> ...')
-            )
-
-        else:
-            self.to_pred = nn.Sequential(
-                Rearrange('... 1 -> ...'),
-                nn.Softplus()
-            )
-
-    def forward(
-        self,
-        seq,
-        *,
-        aa = None,
-        aa_embed = None,
-        contextual_embed = None,
-        contextual_free_text = None,
-        aa_mask = None,
-        target = None,
-        read_value = None,
-        return_corr_coef = False,
-        finetune_enformer = False,
-        finetune_enformer_ln_only = False
-    ):
-        h = self.heads
-
-        # prepare enformer for training
-        # - set to eval and no_grad if not fine-tuning
-        # - always freeze the batchnorms
-
-        freeze_batchnorms_(self.enformer)
-        enformer_forward = self.enformer.forward
-
-        if finetune_enformer:
-            enformer_context = null_context()
-        elif finetune_enformer_ln_only:
-            enformer_context = null_context()
-            freeze_all_but_layernorms_(self.enformer)
-        else:
-            self.enformer.eval()
-            enformer_context = torch.no_grad()
-            enformer_forward = cache_enformer_forward(enformer_forward)
-
-        # genetic sequence embedding
-
-        with enformer_context:
-            seq_embed = enformer_forward(seq, return_only_embeddings = True)
-
-        seq_embed = self.norm_seq_embed(seq_embed)
-
-        # protein related embeddings
-
-        if self.use_esm_embeds:
-            assert exists(aa), 'aa must be passed in as tensor of integers from 0 - 20 (20 being padding)'
-            aa_embed, aa_mask = get_esm_repr(aa, device = seq.device)
-        else:
-            assert exists(aa_embed), 'protein embeddings must be given as aa_embed'
-
-        # free text embeddings, for cell types and experimental params
-
-        if not exists(contextual_embed):
-            assert self.use_free_text_context, 'use_free_text_context must be set to True if one is not passing in contextual_embed tensor'
-            assert exists(contextual_free_text), 'context must be supplied as array of strings as contextual_free_text if contextual_embed is not supplied'
-
-            contextual_embed = get_text_repr(
-                contextual_free_text,
-                return_cls_token = (self.free_text_embed_method == 'cls'),
-                device = seq.device
-            )
-
-        # in the case that a single genetic sequence was given, but needs to interact with multiple contexts
-
-        num_seq = seq_embed.shape[0]
-        num_contexts = aa_embed.shape[0]
-
-        if num_seq == 1:
-            seq_embed = repeat(seq_embed, '1 n d -> b n d', b = num_contexts)
-
-        # film condition both genetic and protein sequences
-
-        seq_embed = self.cond_genetic(seq_embed, contextual_embed)
-        aa_embed = self.cond_protein(aa_embed, contextual_embed, mask = aa_mask)
-
-        # 1 transformer block to produce hyper convolution weights from protein embedding, to be slid across genetic embedding to detect binding spot
-
-        hyper_conv_kernel_size = self.conv_weight_slices_queries.shape[0]
-
-        hyper_weight_queries = repeat(self.conv_weight_slices_queries, 'n d -> b n d', b = aa_embed.shape[0])
-        aa_embed_and_hyper_queries = torch.cat((aa_embed, hyper_weight_queries), dim = 1)
-
-        queries, keys, values = self.to_queries(aa_embed_and_hyper_queries), self.to_keys(aa_embed_and_hyper_queries), self.to_values(aa_embed_and_hyper_queries)
-
-        queries, keys, values = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), (queries, keys, values))
-
-        sim = einsum('b h i d, b h j d -> b h i j', queries, keys) * self.scale
-
-        aa_mask = F.pad(aa_mask, (0, hyper_conv_kernel_size), value = True)
-        aa_mask = rearrange(aa_mask, 'b j -> b 1 1 j')
-
-        sim = sim.masked_fill(~aa_mask, -torch.finfo(sim.dtype).max)
-
-        attn = sim.softmax(dim = -1)
-        attn = self.attn_dropout(attn)
-
-        out = einsum('b h i j, b h j d -> b h i d', attn, values)
-        out = rearrange(out, 'b h n d -> b n (h d)')
-        out = self.to_out(out)
-
-        aa_embed_and_hyper_queries = aa_embed_and_hyper_queries + out
-
-        # feedforward
-
-        aa_embed_and_hyper_queries = self.feedforward(aa_embed_and_hyper_queries) + aa_embed_and_hyper_queries
-
-        hyper_weights = self.to_hyper_weights(aa_embed_and_hyper_queries[:, :hyper_conv_kernel_size])
-        hyper_weights = rearrange(hyper_weights, 'o k i -> o i k')
-
-        seq_embed = rearrange(seq_embed, 'b n d -> b d n')
-        seq_embed = F.pad(seq_embed, (self.conv_padding, self.conv_padding), value = 0.)
-
-        seq_embed = rearrange(seq_embed, 'b n d -> 1 (b n) d')
-
-        hyper_weights, hyper_weights_read_value = rearrange(hyper_weights, 'o (r i) k -> o r i k', r = 2).unbind(dim = 1)
-
-        seq_embed_convolved = F.conv1d(seq_embed, hyper_weights, groups = aa_embed.shape[0])
-        seq_embed_convolved = rearrange(seq_embed_convolved, '1 b n -> b n 1')
-
-        seq_embed_convolved_read = F.conv1d(seq_embed, hyper_weights_read_value, groups = aa_embed.shape[0])
-        seq_embed_convolved_read = rearrange(seq_embed_convolved_read, '1 b n -> b n 1')
-
-        # to *-seq prediction
-
-        pred = self.to_pred(seq_embed_convolved)
 
         if not exists(target):
             return pred
 
-        if not self.binary_target and return_corr_coef:
-            return pearson_corr_coef(pred, target)
+        # binary loss w/ optional auxiliary loss
 
-        # calculate losses
+        loss = self.loss_fn(pred, target.float())
 
-        if self.binary_target:
-            loss = self.loss_fn(pred, target.float())
-        else:
-            loss = poisson_loss(pred, target)
+        if not self.aux_read_value_loss:
+            return loss, 0.
 
-        if exists(read_value):
-            read_value_pred = self.to_read_value_pred(seq_embed_convolved_read)
-            read_value = rearrange(read_value, 'b 1 -> b')
-            loss = loss + F.smooth_l1_loss(read_value_pred, read_value) * self.read_value_aux_loss_weight
+        # return prediction if not auto-calculating loss
 
-        return loss
+        assert exists(read_value) and exists(peaks_nr), 'peaks NR must be supplied if doing auxiliary read value loss'
+
+        aux_loss = self.to_read_value_aux_loss(
+            logits,
+            peaks_nr,
+            read_value = read_value
+        )
+
+        return loss, aux_loss

@@ -51,7 +51,9 @@ class Trainer(nn.Module):
         valid_sample_frac = 1.,
         remap_sample_frac = 1.,
         shift_aug_range = (-2, 2),
-        rc_aug = True
+        rc_aug = True,
+        experiments_json_path = None,
+        read_value_aux_loss = False
     ):
         super().__init__()
         self.model = model
@@ -75,7 +77,8 @@ class Trainer(nn.Module):
             context_length = context_length,
             remap_df_frac = train_sample_frac,
             shift_augs = shift_aug_range,
-            rc_aug = rc_aug
+            rc_aug = rc_aug,
+            experiments_json_path = experiments_json_path
         )
 
         self.neg_ds = NegativePeakDataset(
@@ -86,7 +89,8 @@ class Trainer(nn.Module):
             filter_chromosome_ids = train_chromosome_ids,
             exclude_targets = held_out_targets,
             exclude_cell_types = held_out_cell_types,
-            context_length = context_length
+            context_length = context_length,
+            experiments_json_path = experiments_json_path
         )
 
         self.valid_ds = RemapAllPeakDataset(
@@ -99,7 +103,8 @@ class Trainer(nn.Module):
             context_length = context_length,
             remap_df_frac = valid_sample_frac,
             shift_augs = shift_aug_range,
-            rc_aug = rc_aug
+            rc_aug = rc_aug,
+            experiments_json_path = experiments_json_path
         )
 
         self.valid_neg_ds = NegativePeakDataset(
@@ -110,7 +115,8 @@ class Trainer(nn.Module):
             filter_chromosome_ids = valid_chromosome_ids,
             include_targets = held_out_targets,
             include_cell_types = held_out_cell_types,
-            context_length = context_length
+            context_length = context_length,
+            experiments_json_path = experiments_json_path
         )
 
         self.dl = get_dataloader(self.ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
@@ -118,6 +124,8 @@ class Trainer(nn.Module):
 
         self.valid_dl = get_dataloader(self.valid_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
         self.valid_neg_dl = get_dataloader(self.valid_neg_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
+
+        self.read_value_aux_loss = read_value_aux_loss
 
         self.optim = get_optimizer(model.parameters())
 
@@ -127,27 +135,33 @@ class Trainer(nn.Module):
         self.validate_every = validate_every
         self.register_buffer('steps', torch.Tensor([0.]))
 
-    def forward(self, finetune_enformer_ln_only = True, **kwargs):
+    def forward(
+        self,
+        finetune_enformer_ln_only = True,
+        **kwargs
+    ):
         curr_step = int(self.steps.item())
         self.model.train()
 
         total_train_loss = 0
         for _ in range(self.grad_accum_every):
-            seq, tf_aa, contextual_texts, _, binary_target = collate_dl_outputs(next(self.dl), next(self.neg_dl))
-            seq, binary_target = seq.cuda(), binary_target.cuda()
+            seq, tf_aa, contextual_texts, peaks_nr, read_value, binary_target = collate_dl_outputs(next(self.dl), next(self.neg_dl))
+            seq, binary_target, read_value, peaks_nr = seq.cuda(), binary_target.cuda(), read_value.cuda(), peaks_nr.cuda()
 
-            loss = self.model(
+            loss, aux_loss = self.model(
                 seq,
                 target = binary_target,
                 aa = tf_aa,
                 contextual_free_text = contextual_texts,
                 finetune_enformer_ln_only = finetune_enformer_ln_only,
+                read_value = read_value,
+                peaks_nr = peaks_nr,
                 **kwargs
             )
 
-            total_train_loss += loss.item()
-
-            (loss / self.grad_accum_every).backward()
+            total_loss = self.model.combine_losses(loss, aux_loss)
+            total_train_loss += total_loss.item()
+            (total_loss / self.grad_accum_every).backward()
 
         avg_loss = total_train_loss / self.grad_accum_every
         logs = {'loss': avg_loss}
@@ -166,7 +180,7 @@ class Trainer(nn.Module):
             total_valid_accuracies = 0
 
             for _ in range(self.grad_accum_every):
-                seq, tf_aa, contextual_texts, _, binary_target = collate_dl_outputs(next(self.valid_dl), next(self.valid_neg_dl))
+                seq, tf_aa, contextual_texts, peaks_nr, read_value, binary_target = collate_dl_outputs(next(self.valid_dl), next(self.valid_neg_dl))
                 seq, binary_target = seq.cuda(), binary_target.cuda()
 
                 valid_logits = self.model(

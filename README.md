@@ -254,7 +254,7 @@ working fine-tuning training loop for bind / no-bind prediction
 import torch
 from enformer_pytorch import load_pretrained_model
 
-from tf_bind_transformer import HyperTransformerAdapterModel, Trainer
+from tf_bind_transformer import AttentionAdapterModel, Trainer
 
 # instantiate enformer or load pretrained
 
@@ -262,14 +262,15 @@ enformer = load_pretrained_model('preview', target_length = -1)
 
 # instantiate model wrapper that takes in enformer
 
-model = HyperTransformerAdapterModel(
+model = AttentionAdapterModel(
     enformer = enformer,
     use_esm_embeds = True,
     use_free_text_context = True,
     free_text_embed_method = 'mean_pool',
     binary_target = True,
     target_mse_loss = True,
-    use_squeeze_excite = True
+    use_squeeze_excite = True,
+    aux_read_value_loss = True     # use auxiliary read value loss, can be turned off
 ).cuda()
 
 # pass the model (adapter + enformer) to the Trainer
@@ -286,7 +287,8 @@ trainer = Trainer(
     fasta_file = './hg38.ml.fa',                      # human genome sequences
     train_chromosome_ids = [*range(1, 24, 2), 'X'],   # chromosomes to train on
     valid_chromosome_ids = [*range(2, 24, 2)],        # chromosomes to validate on
-    held_out_targets = ['AFF4']                       # targets to hold out for validation
+    held_out_targets = ['AFF4'],                      # targets to hold out for validation
+    experiments_json_path = './data/experiments.json' # path to all experiments data, at this path relative to the project root, if repository is git cloned
 )
 
 while True:
@@ -374,18 +376,20 @@ $ CLEAR_CACHE=1 python train.py
 - [x] add accuracy metric to fine tune script
 - [x] master trainer class that handles both training / validation splitting, efficient instantiation of dataframe, filtering etc
 - [x] write a simple trainer class that takes care of the training loop
+- [x] create faster protein and context embedding derivation by optionally moving model to gpu and back to cpu when done
+- [x] use ProtTrans for longer context proteins, look into AF2
 - [ ] support for custom transformers other than enformer
 - [ ] warmup in training loop
 - [ ] mixed precision
 - [ ] use wandb for experiment tracking
 - [ ] cleanup tech debt in data and protein_utils
 - [ ] write fine-tuning script for finetuning on merged genomic track(s) from remap
-- [ ] create faster protein and context embedding derivation by optionally moving model to gpu and back to cpu when done
 - [ ] explore protein model fine-tuning of layernorm
-- [ ] use ProtTrans for longer context proteins, look into AF2
 - [ ] auto-auroc calc
 - [ ] k-fold cross validation
 - [ ] output attention intermediates (or convolution output for hypertransformer), for interpreting binding site
+- [ ] log auxiliary losses appropriately (read value)
+- [ ] make protalbert usable with one flag
 
 ## Appreciation
 

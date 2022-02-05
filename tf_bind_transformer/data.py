@@ -6,6 +6,7 @@ import polars as pl
 from collections import defaultdict
 
 import os
+import json
 import shutil
 import numpy as np
 
@@ -37,6 +38,39 @@ def parse_exp_target_cell(exp_target_cell):
     experiment, target, *cell_type = exp_target_cell.split('.')
     cell_type = '.'.join(cell_type) # handle edge case where cell type contains periods
     return experiment, target, cell_type
+
+# fetch index of datasets, for providing the sequencing reads
+# for auxiliary read value prediction
+
+def fetch_experiments_index(path):
+    if not exists(path):
+        return dict()
+
+    exp_path = Path(path)
+    assert exp_path.exists(), 'path to experiments json must exist'
+
+    root_json = json.loads(exp_path.read_text())
+    experiments = root_json['experiments']
+
+    index = {}
+    for experiment in experiments:
+        exp_id = experiment['accession']
+
+        if 'details' not in experiment:
+            continue
+
+        details = experiment['details']
+
+        if 'datasets' not in details:
+            continue
+
+        datasets = details['datasets']
+
+        for dataset in datasets:
+            dataset_name = dataset['dataset_name']
+            index[dataset_name] = dataset['peaks_NR']
+
+    return index
 
 # fetch protein sequences by gene name and uniprot id
 
@@ -244,6 +278,7 @@ class RemapAllPeakDataset(Dataset):
         exclude_cell_types = None,
         include_cell_types = None,
         remap_df_frac = 1.,
+        experiments_json_path = None,
         **kwargs
     ):
         super().__init__()
@@ -294,6 +329,8 @@ class RemapAllPeakDataset(Dataset):
         self.df = remap_df
         self.fasta = FastaInterval(**kwargs)
 
+        self.experiments_index = fetch_experiments_index(experiments_json_path)
+
     def __len__(self):
         return len(self.df)
 
@@ -306,10 +343,14 @@ class RemapAllPeakDataset(Dataset):
         aa_seq = self.factor_ds[target]
         context_str = f'{cell_type} | {experiment}'
 
-        value = torch.Tensor([reading])
+        read_value = torch.Tensor([reading])
+
+        peaks_nr = self.experiments_index.get(experiment_target_cell_type, 0.)
+        peaks_nr = torch.Tensor([peaks_nr])
+
         label = torch.Tensor([1.])
 
-        return seq, aa_seq, context_str, value, label
+        return seq, aa_seq, context_str, peaks_nr, read_value, label
 
 class NegativePeakDataset(Dataset):
     def __init__(
@@ -326,6 +367,7 @@ class NegativePeakDataset(Dataset):
         exclude_cell_types = None,
         include_cell_types = None,
         exp_target_cell_column = 'column_4',
+        experiments_json_path = None,
         **kwargs
     ):
         super().__init__()
@@ -394,6 +436,8 @@ class NegativePeakDataset(Dataset):
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)
         self.fasta = FastaInterval(**kwargs)
 
+        self.experiments_index = fetch_experiments_index(experiments_json_path)
+
     def __len__(self):
         return len(self.neg_df)
 
@@ -407,16 +451,20 @@ class NegativePeakDataset(Dataset):
         aa_seq = self.factor_ds[target]
         context_str = f'{cell_type} | {experiment}'
 
-        value = torch.Tensor([0.])
+        read_value = torch.Tensor([0.])
+
+        peaks_nr = self.experiments_index.get(random_exp_target_cell_type, 0.)
+        peaks_nr = torch.Tensor([peaks_nr])
+
         label = torch.Tensor([0.])
 
-        return seq, aa_seq, context_str, value, label
+        return seq, aa_seq, context_str, peaks_nr, read_value, label
 
 # dataloader related functions
 
 def collate_fn(data):
-    seq, aa_seq, context_str, values, labels = list(zip(*data))
-    return torch.stack(seq), tuple(aa_seq), tuple(context_str), torch.stack(values, dim = 0), torch.cat(labels, dim = 0)
+    seq, aa_seq, context_str, peaks_nr, read_values, labels = list(zip(*data))
+    return torch.stack(seq), tuple(aa_seq), tuple(context_str), torch.stack(peaks_nr, dim = 0), torch.stack(read_values, dim = 0), torch.cat(labels, dim = 0)
 
 def collate_dl_outputs(*dl_outputs):
     outputs = list(zip(*dl_outputs))
