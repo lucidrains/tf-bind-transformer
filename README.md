@@ -390,6 +390,7 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] output attention intermediates (or convolution output for hypertransformer), for interpreting binding site
 - [ ] log auxiliary losses appropriately (read value)
 - [ ] make protalbert usable with one flag
+- [ ] use prefect.io to manage downloading of tfactors fastas, remap scoped negative peaks, blacklist filtering etc
 
 ## Appreciation
 
