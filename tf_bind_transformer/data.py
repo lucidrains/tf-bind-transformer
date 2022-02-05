@@ -23,6 +23,9 @@ import pybedtools
 def exists(val):
     return val is not None
 
+def default(val, d):
+    return val if exists(val) else d
+
 def cast_list(val = None):
     if not exists(val):
         return []
@@ -352,6 +355,38 @@ class RemapAllPeakDataset(Dataset):
 
         return seq, aa_seq, context_str, peaks_nr, read_value, label
 
+# filter functions for exp-target-cells based on heldouts
+
+def filter_exp_target_cell(
+    arr,
+    *,
+    exclude_targets = None,
+    include_targets = None,
+    exclude_cell_types = None,
+    include_cell_types = None,
+):
+    out = []
+
+    for el in arr:
+        experiment, target, cell_type = parse_exp_target_cell(el)
+
+        if exists(include_targets) and len(include_targets) > 0 and target not in include_targets:
+            continue
+
+        if exists(exclude_targets) and target in exclude_targets:
+            continue
+
+        if exists(include_cell_types) and len(include_cell_types) > 0 and cell_type not in include_cell_types:
+            continue
+
+        if exists(exclude_cell_types) and cell_type in exclude_cell_types:
+            continue
+
+        out.append(el)
+
+    return out
+
+
 # dataset for negatives scoped to a specific exp-target-celltype
 
 class ScopedNegativePeakDataset(Dataset):
@@ -378,7 +413,22 @@ class ScopedNegativePeakDataset(Dataset):
         # get dictionary with exp-target-cell to boolean numpy indicating which ones are negatives
 
         npys_paths = [*Path(numpy_folder_with_scoped_negatives).glob('**/*.npy')]
-        self.exp_target_cell_negatives = [(path.name.rstrip(exts), path) for path in npys_paths]
+        exp_target_cell_negatives = [(path.name.rstrip(exts), path) for path in npys_paths]
+
+        exp_target_cells = [el[0] for el in exp_target_cell_negatives]
+
+        exp_target_cells = filter_exp_target_cell(
+            exp_target_cells,
+            include_targets = include_targets,
+            exclude_targets = exclude_targets,
+            include_cell_types = include_cell_types,
+            exclude_cell_types = exclude_cell_types
+        )
+
+        filtered_exp_target_cell_negatives = list(filter(lambda el: el[0] in exp_target_cells, exp_target_cell_negatives))
+
+        self.exp_target_cell_negatives = filtered_exp_target_cell_negatives
+        assert len(self.exp_target_cell_negatives) > 0, 'no experiment-target-cell scoped negatives to select from after filtering'
 
         if not exists(remap_df):
             remap_df = read_bed(remap_bed_file)
@@ -465,40 +515,19 @@ class NegativePeakDataset(Dataset):
         assert len(neg_df) > 0, 'dataset is empty by filter criteria'
 
         self.neg_df = neg_df
-        self.experiments = remap_df['experiment'].unique().to_list()
-
-        self.cell_types = remap_df['cell_type'].unique().to_list()
-
-        self.targets = remap_df['target'].unique().to_list()
-
-        include_targets = cast_list(include_targets)
-        exclude_targets = cast_list(exclude_targets)
-
-        if include_targets:
-            self.targets = list(set(self.targets).intersection(set(include_targets)))
-
-        if exclude_targets:
-            self.targets = list(set(self.targets) - set(exclude_targets))
-
-        assert self.targets, 'targets cannot be empty for negative set'
-
-        include_cell_types = cast_list(include_cell_types)
-        exclude_cell_types = cast_list(exclude_cell_types)
-
-        if include_cell_types:
-            self.cell_types = list(set(self.cell_types).intersection(set(include_cell_types)))
-
-        if exclude_cell_types:
-            self.cell_types = list(set(self.cell_types) - set(exclude_cell_types))
 
         # get all exp-target-cells and filter by above
+
         exp_target_cells = remap_df.get_column(exp_target_cell_column).unique().to_list()
 
-        def filter_exp_target_cells(el):
-            experiment, target, cell_type = parse_exp_target_cell(el)
-            return experiment in self.experiments and target in self.targets and cell_type in self.cell_types
+        self.filtered_exp_target_cells = filter_exp_target_cell(
+            exp_target_cells,
+            include_targets = include_targets,
+            exclude_targets = exclude_targets,
+            include_cell_types = include_cell_types,
+            exclude_cell_types = exclude_cell_types
+        )
 
-        self.filtered_exp_target_cells = list(filter(filter_exp_target_cells, exp_target_cells))
         assert len(self.filtered_exp_target_cells), 'no experiment-target-cell left for hard negative set'
 
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)

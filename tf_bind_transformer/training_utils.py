@@ -134,9 +134,12 @@ class Trainer(nn.Module):
                 fasta_file = fasta_file,
                 factor_fasta_folder = factor_fasta_folder,
                 numpy_folder_with_scoped_negatives = scoped_negs_path,
-                exts = scoped_negs_exts,
                 remap_bed_file = scoped_negs_remap_bed_path,
+                exts = scoped_negs_exts,
+                exclude_targets = held_out_targets,
+                exclude_cell_types = held_out_cell_types,
             )
+
             self.scoped_neg_dl = get_dataloader(self.scoped_neg_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
 
         self.valid_dl = get_dataloader(self.valid_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
