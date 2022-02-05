@@ -410,6 +410,22 @@ class ScopedNegativePeakDataset(Dataset):
         super().__init__()
         assert exists(remap_df) ^ exists(remap_bed_file), 'either remap bed file or remap dataframe must be passed in'
 
+        if not exists(remap_df):
+            remap_df = read_bed(remap_bed_file)
+
+        dataset_chr_ids = CHR_IDS
+
+        if exists(filter_chromosome_ids):
+            dataset_chr_ids = dataset_chr_ids.intersection(set(filter_chromosome_ids))
+
+        filter_map_df = remap_df.with_column(pl.when(pl_isin('column_1', get_chr_names(dataset_chr_ids))).then(True).otherwise(False).alias('mask'))
+        mask = filter_map_df.get_column('mask').to_numpy()
+
+        assert ~mask.sum() > 0, 'all remap rows filtered out for scoped negative peak dataset'
+
+        self.df = remap_df
+        self.chromosome_mask = mask
+
         # get dictionary with exp-target-cell to boolean numpy indicating which ones are negatives
 
         npys_paths = [*Path(numpy_folder_with_scoped_negatives).glob('**/*.npy')]
@@ -430,12 +446,10 @@ class ScopedNegativePeakDataset(Dataset):
         self.exp_target_cell_negatives = filtered_exp_target_cell_negatives
         assert len(self.exp_target_cell_negatives) > 0, 'no experiment-target-cell scoped negatives to select from after filtering'
 
-        if not exists(remap_df):
-            remap_df = read_bed(remap_bed_file)
+        # tfactor dataset
 
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)
 
-        self.df = remap_df
         self.fasta = FastaInterval(fasta_file = fasta_file, **kwargs)
         self.experiments_index = fetch_experiments_index(experiments_json_path)
 
@@ -451,6 +465,13 @@ class ScopedNegativePeakDataset(Dataset):
 
         np_arr = np.load(str(bool_numpy_path))
         np_arr_noised = np_arr.astype(np.float32) + np.random.uniform(low = -1e-1, high = 1e-1, size = np_arr.shape[0])
+
+        # mask with chromosomes allowed
+
+        np_arr_noised *= self.chromosome_mask.astype(np.float32)
+
+        # select random negative peak
+
         random_neg_peak_index = np_arr_noised.argmax()
 
         chr_name, begin, end, *_ = self.df.row(random_neg_peak_index)

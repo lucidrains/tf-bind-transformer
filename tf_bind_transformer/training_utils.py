@@ -138,6 +138,7 @@ class Trainer(nn.Module):
                 exts = scoped_negs_exts,
                 exclude_targets = held_out_targets,
                 exclude_cell_types = held_out_cell_types,
+                filter_chromosome_ids = train_chromosome_ids
             )
 
             self.scoped_neg_dl = get_dataloader(self.scoped_neg_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
