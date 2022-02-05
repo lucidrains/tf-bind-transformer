@@ -341,7 +341,7 @@ class RemapAllPeakDataset(Dataset):
 
         seq = self.fasta(chr_name, begin, end)
         aa_seq = self.factor_ds[target]
-        context_str = f'{cell_type} | {experiment}'
+        context_str = cell_type
 
         read_value = torch.Tensor([reading])
 
@@ -351,6 +351,74 @@ class RemapAllPeakDataset(Dataset):
         label = torch.Tensor([1.])
 
         return seq, aa_seq, context_str, peaks_nr, read_value, label
+
+# dataset for negatives scoped to a specific exp-target-celltype
+
+class ScopedNegativePeakDataset(Dataset):
+    def __init__(
+        self,
+        *,
+        fasta_file,
+        factor_fasta_folder,
+        numpy_folder_with_scoped_negatives,
+        exts = '.bed.bool.npy',
+        remap_bed_file = None,
+        remap_df = None,
+        filter_chromosome_ids = None,
+        experiments_json_path = None,
+        exclude_targets = None,
+        include_targets = None,
+        exclude_cell_types = None,
+        include_cell_types = None,
+        **kwargs
+    ):
+        super().__init__()
+        assert exists(remap_df) ^ exists(remap_bed_file), 'either remap bed file or remap dataframe must be passed in'
+
+        # get dictionary with exp-target-cell to boolean numpy indicating which ones are negatives
+
+        npys_paths = [*Path(numpy_folder_with_scoped_negatives).glob('**/*.npy')]
+        self.exp_target_cell_negatives = [(path.name.rstrip(exts), path) for path in npys_paths]
+
+        if not exists(remap_df):
+            remap_df = read_bed(remap_bed_file)
+
+        self.factor_ds = FactorProteinDataset(factor_fasta_folder)
+
+        self.df = remap_df
+        self.fasta = FastaInterval(fasta_file = fasta_file, **kwargs)
+        self.experiments_index = fetch_experiments_index(experiments_json_path)
+
+    def __len__(self):
+        return len(self.exp_target_cell_negatives)
+
+    def __getitem__(self, idx):
+        exp_target_cell, bool_numpy_path = self.exp_target_cell_negatives[idx]
+        experiment, target, cell_type = parse_exp_target_cell(exp_target_cell)
+
+        # load boolean numpy array
+        # and select random peak that is a negative
+
+        np_arr = np.load(str(bool_numpy_path))
+        np_arr_noised = np_arr.astype(np.float32) + np.random.uniform(low = -1e-1, high = 1e-1, size = np_arr.shape[0])
+        random_neg_peak_index = np_arr_noised.argmax()
+
+        chr_name, begin, end, *_ = self.df.row(random_neg_peak_index)
+        seq = self.fasta(chr_name, begin, end)
+
+        aa_seq = self.factor_ds[target]
+        context_str = cell_type
+
+        peaks_nr = self.experiments_index.get(exp_target_cell, 0.)
+        peaks_nr = torch.Tensor([peaks_nr])
+
+        read_value = torch.Tensor([0.])
+
+        label = torch.Tensor([0.])
+
+        return seq, aa_seq, context_str, peaks_nr, read_value, label
+
+# dataset for hard negatives (negatives to all peaks)
 
 class NegativePeakDataset(Dataset):
     def __init__(
@@ -449,7 +517,7 @@ class NegativePeakDataset(Dataset):
 
         seq = self.fasta(chr_name, begin, end)
         aa_seq = self.factor_ds[target]
-        context_str = f'{cell_type} | {experiment}'
+        context_str = cell_type
 
         read_value = torch.Tensor([0.])
 
