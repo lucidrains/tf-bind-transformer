@@ -382,6 +382,7 @@ $ CLEAR_CACHE=1 python train.py
 - [x] create faster protein and context embedding derivation by optionally moving model to gpu and back to cpu when done
 - [x] use ProtTrans for longer context proteins, look into AF2
 - [x] make protalbert usable with one flag
+- [x] log auxiliary losses appropriately (read value)
 - [ ] support for custom transformers other than enformer
 - [ ] warmup in training loop
 - [ ] mixed precision
@@ -392,7 +393,6 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] auto-auroc calc
 - [ ] k-fold cross validation
 - [ ] output attention intermediates (or convolution output for hypertransformer), for interpreting binding site
-- [ ] log auxiliary losses appropriately (read value)
 - [ ] use prefect.io to manage downloading of tfactors fastas, remap scoped negative peaks, blacklist filtering etc
 
 ## Appreciation

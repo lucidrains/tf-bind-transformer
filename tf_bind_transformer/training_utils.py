@@ -26,6 +26,14 @@ def get_optimizer(params, lr = 3e-4, wd = 1e-1, filter_by_requires_grad = False)
 
     return AdamW(param_groups, lr = lr, weight_decay = wd)
 
+# helpers for logging and accumulating values across gradient steps
+
+def accum_log(log, new_logs):
+    for key, new_value in new_logs.items():
+        old_value = log.get(key, 0.)
+        log[key] = old_value + new_value
+    return log
+
 # simple Trainer class
 
 class Trainer(nn.Module):
@@ -163,10 +171,12 @@ class Trainer(nn.Module):
         finetune_enformer_ln_only = True,
         **kwargs
     ):
+        grad_accum_every = self.grad_accum_every
         curr_step = int(self.steps.item())
         self.model.train()
 
-        total_train_loss = 0
+        log = {}
+
         for _ in range(self.grad_accum_every):
             dl_outputs = [next(self.dl), next(self.neg_dl)]
 
@@ -188,12 +198,16 @@ class Trainer(nn.Module):
             )
 
             total_loss = self.model.combine_losses(loss, aux_loss)
-            total_train_loss += total_loss.item()
+
+            log = accum_log(log, {
+                'loss': loss.item() / grad_accum_every,
+                'aux_loss': aux_loss.item() / grad_accum_every,
+                'total_loss': total_loss.item() / grad_accum_every
+            })
+
             (total_loss / self.grad_accum_every).backward()
 
-        avg_loss = total_train_loss / self.grad_accum_every
-        logs = {'loss': avg_loss}
-        print(f'{curr_step} loss: {avg_loss}')
+        print(f'{curr_step} loss: {log["total_loss"]}')
 
         if exists(self.grad_clip_norm):
             nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
@@ -223,20 +237,16 @@ class Trainer(nn.Module):
                 total_valid_loss += valid_loss.item()
                 total_valid_accuracies += valid_accuracy.item()
 
-            avg_valid_loss = total_valid_loss / self.grad_accum_every
-            avg_valid_accuracy = total_valid_accuracies / self.grad_accum_every
+                log = accum_log(log, {
+                    'valid_loss': valid_loss.item() / grad_accum_every,
+                    'valid_accuracy': valid_accuracy.item() / grad_accum_every
+                })
 
-            logs = {
-                **logs,
-                'valid_loss': avg_valid_loss,
-                'valid_accuracy': avg_valid_accuracy
-            }
-
-            print(f'{curr_step} valid loss: {avg_valid_loss}')
-            print(f'{curr_step} valid accuracy: {avg_valid_accuracy}')
+            print(f'{curr_step} valid loss: {log["valid_loss"]}')
+            print(f'{curr_step} valid accuracy: {log["valid_accuracy"]}')
 
             if curr_step > 0:
                 torch.save(self.model.state_dict(), self.checkpoint_filename)
 
         self.steps += 1
-        return logs
+        return log
