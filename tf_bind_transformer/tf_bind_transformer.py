@@ -16,7 +16,7 @@ from enformer_pytorch.finetune import freeze_batchnorms_, freeze_all_but_layerno
 from logavgexp_pytorch import logavgexp
 
 from tf_bind_transformer.cache_utils import cache_fn
-from tf_bind_transformer.protein_utils import get_esm_repr, ESM_EMBED_DIM
+from tf_bind_transformer.protein_utils import get_protein_embedder
 from tf_bind_transformer.context_utils import get_text_repr, get_contextual_dim
 
 # helper functions
@@ -163,8 +163,9 @@ class AdapterModel(nn.Module):
         latent_dim = 64,
         latent_heads = 32,
         aa_embed_dim = None,
+        aa_embed_encoder = 'esm',
         contextual_embed_dim = None,
-        use_esm_embeds = False,
+        use_aa_embeds = False,
         use_free_text_context = False,
         free_text_context_encoder = 'pubmed',
         free_text_embed_method = 'cls',
@@ -192,10 +193,12 @@ class AdapterModel(nn.Module):
 
         # protein embedding related variables
 
-        self.use_esm_embeds = use_esm_embeds
+        self.use_aa_embeds = use_aa_embeds
+        self.aa_embed_config = get_protein_embedder(aa_embed_encoder)
+        self.get_aa_embed = self.aa_embed_config['fn']
 
-        if use_esm_embeds:
-            aa_embed_dim = ESM_EMBED_DIM
+        if use_aa_embeds:
+            aa_embed_dim = self.aa_embed_config['dim']
         else:
             assert exists(aa_embed_dim), 'AA embedding dimensions must be set if not using ESM'
 
@@ -293,9 +296,9 @@ class AdapterModel(nn.Module):
 
         # protein related embeddings
 
-        if self.use_esm_embeds:
+        if self.use_aa_embeds:
             assert exists(aa), 'aa must be passed in as tensor of integers from 0 - 20 (20 being padding)'
-            aa_embed, aa_mask = get_esm_repr(aa, device = seq.device)
+            aa_embed, aa_mask = self.get_aa_embed(aa, device = seq.device)
         else:
             assert exists(aa_embed), 'protein embeddings must be given as aa_embed'
 
@@ -404,10 +407,12 @@ class AttentionAdapterModel(nn.Module):
         *,
         enformer,
         aa_embed_dim = None,
+        aa_embed_encoder = 'esm',
         contextual_embed_dim = None,
         cross_attn_dim_head = 64,
         cross_attn_heads = 8,
-        use_esm_embeds = False,
+        use_aa_embeds = False,
+
         use_free_text_context = False,
         free_text_context_encoder = 'pubmed',
         free_text_embed_method = 'cls',
@@ -435,10 +440,12 @@ class AttentionAdapterModel(nn.Module):
 
         # protein embedding related variables
 
-        self.use_esm_embeds = use_esm_embeds
+        self.use_aa_embeds = use_aa_embeds
+        self.aa_embed_config = get_protein_embedder(aa_embed_encoder)
+        self.get_aa_embed = self.aa_embed_config['fn']
 
-        if use_esm_embeds:
-            aa_embed_dim = ESM_EMBED_DIM
+        if use_aa_embeds:
+            aa_embed_dim = self.aa_embed_config['dim']
         else:
             assert exists(aa_embed_dim), 'AA embedding dimensions must be set if not using ESM'
 
@@ -547,9 +554,9 @@ class AttentionAdapterModel(nn.Module):
 
         # protein related embeddings
 
-        if self.use_esm_embeds:
+        if self.use_aa_embeds:
             assert exists(aa), 'aa must be passed in as tensor of integers from 0 - 20 (20 being padding)'
-            aa_embed, aa_mask = get_esm_repr(aa, device = seq.device)
+            aa_embed, aa_mask = self.get_aa_embed(aa, device = seq.device)
         else:
             assert exists(aa_embed), 'protein embeddings must be given as aa_embed'
 

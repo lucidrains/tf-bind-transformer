@@ -74,7 +74,7 @@ corr_coef = model(
 )
 ```
 
-## Using ESM for fetching of transcription factor protein embeddings
+## Using ESM or ProtAlbert for fetching of transcription factor protein embeddings
 
 ```python
 import torch
@@ -89,7 +89,8 @@ enformer = Enformer(
 
 model = AdapterModel(
     enformer = enformer,
-    use_esm_embeds = True,                            # set this to True
+    use_aa_embeds = True,                            # set this to True
+    aa_embed_encoder = 'esm',                        # by default, will use esm, but can be set to 'protalbert', which has a longer context length of 2048 (vs esm's 1024)
     contextual_embed_dim = 256
 ).cuda()
 
@@ -113,6 +114,8 @@ loss = model(
 loss.backward()
 ```
 
+- [ ] add alphafold2
+
 ## Context passed in as free text
 
 One can also pass the context (cell type, experimental parameters) directly as free text, which will be encoded by a text transformer trained on pubmed abstracts.
@@ -134,7 +137,7 @@ enformer = Enformer(
 
 model = AdapterModel(
     enformer = enformer,
-    use_esm_embeds = True,
+    use_aa_embeds = True,
     use_free_text_context = True,        # this must be set to True
     free_text_embed_method = 'mean_pool' # allow for mean pooling of embeddings, instead of using CLS token
 ).cuda()
@@ -378,6 +381,7 @@ $ CLEAR_CACHE=1 python train.py
 - [x] write a simple trainer class that takes care of the training loop
 - [x] create faster protein and context embedding derivation by optionally moving model to gpu and back to cpu when done
 - [x] use ProtTrans for longer context proteins, look into AF2
+- [x] make protalbert usable with one flag
 - [ ] support for custom transformers other than enformer
 - [ ] warmup in training loop
 - [ ] mixed precision
@@ -389,7 +393,6 @@ $ CLEAR_CACHE=1 python train.py
 - [ ] k-fold cross validation
 - [ ] output attention intermediates (or convolution output for hypertransformer), for interpreting binding site
 - [ ] log auxiliary losses appropriately (read value)
-- [ ] make protalbert usable with one flag
 - [ ] use prefect.io to manage downloading of tfactors fastas, remap scoped negative peaks, blacklist filtering etc
 
 ## Appreciation

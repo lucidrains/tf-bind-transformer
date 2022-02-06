@@ -17,7 +17,14 @@ PROTEIN_EMBED_USE_CPU = os.getenv('PROTEIN_EMBED_USE_CPU', None) is not None
 if PROTEIN_EMBED_USE_CPU:
     print('calculating protein embed only on cpu')
 
-GLOBAL_VARIABLES = dict(model = None)
+# global variables
+
+GLOBAL_VARIABLES = {
+    'model': None,
+    'tokenizer': None
+}
+
+# esm related functions
 
 ESM_MAX_LENGTH = 1024
 ESM_EMBED_DIM = 1280
@@ -120,8 +127,6 @@ PROT_ALBERT_PATH = 'Rostlab/prot_albert'
 PROT_ALBERT_DIM = 4096
 PROT_ALBERT_MAX_LENGTH = 2048
 
-GLOBAL_VARIABLES = dict(tokenizer = None, model = None)
-
 def protein_str_with_spaces(protein_str):
     protein_str = re.sub(r"[UZOB]", 'X', protein_str)
     return ' '.join([*protein_str])
@@ -171,6 +176,9 @@ def get_prot_albert_repr(
     if isinstance(proteins, str):
         proteins = [proteins]
 
+    if isinstance(proteins, torch.Tensor):
+        proteins = tensor_to_aa_str(proteins)
+
     get_protein_repr_fn = cache_fn(get_single_prot_albert_repr, path = f'proteins/prot_albert')
 
     representations = [get_protein_repr_fn(protein, max_length = max_length, hidden_state_index = hidden_state_index) for protein in proteins]
@@ -180,3 +188,40 @@ def get_prot_albert_repr(
     padded_representations = pad_sequence(representations, batch_first = True)
 
     return padded_representations.to(device), masks.to(device)
+
+# alphafold2 functions
+
+AF2_MAX_LENGTH = 2500
+AF2_EMBEDDING_DIM = 384
+
+def get_alphafold2_repr(
+    proteins,
+    device,
+    max_length = AF2_MAX_LENGTH,
+    **kwargs
+):
+    raise NotImplementedError
+
+# factory functions
+
+PROTEIN_REPR_CONFIG = {
+    'esm': {
+        'dim': ESM_EMBED_DIM,
+        'fn': get_esm_repr
+    },
+    'protalbert': {
+        'dim': PROT_ALBERT_DIM,
+        'fn': get_prot_albert_repr
+    },
+    'alphafold2': {
+        'dim': AF2_EMBEDDING_DIM,
+        'fn': get_alphafold2_repr
+    }
+}
+
+def get_protein_embedder(name):
+    allowed_protein_embedders = list(PROTEIN_REPR_CONFIG.keys())
+    assert name in allowed_protein_embedders, f"must be one of {', '.join(allowed_protein_embedders)}"
+
+    config = PROTEIN_REPR_CONFIG[name]
+    return config
