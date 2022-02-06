@@ -129,7 +129,7 @@ class ReadValueMLP(nn.Module):
         )
 
         self.mlp = nn.Sequential(
-            nn.Linear(dim + fourier_dims + 1, dim * 2),
+            nn.Linear(dim + fourier_dims + 2, dim * 2),
             nn.GELU(),
             nn.Linear(dim * 2, 1),
             Rearrange('... 1 -> ...')
@@ -138,11 +138,13 @@ class ReadValueMLP(nn.Module):
     def forward(self, logits, peaks_nr, read_value):
         logits = self.logits_norm(logits)
 
+        peaks_nr_log_space = torch.log(peaks_nr)
+
         peaks_nr = rearrange(peaks_nr, '... -> (...)')
         peaks_nr_encoded = fourier_encode(peaks_nr / self.norm_factor_fourier, self.fourier_dims)
         peaks_nr_normed = rearrange(peaks_nr, '... -> ... 1') / self.norm_factor_linear
 
-        peaks_nr_encoded_with_self = torch.cat((peaks_nr_normed, peaks_nr_encoded), dim = -1)
+        peaks_nr_encoded_with_self = torch.cat((peaks_nr_normed, peaks_nr_log_space, peaks_nr_encoded), dim = -1)
 
         logits_with_peaks = torch.cat((logits, peaks_nr_encoded_with_self), dim = -1)
 
