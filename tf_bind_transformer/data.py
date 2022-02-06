@@ -236,36 +236,6 @@ def generate_random_ranges_from_fasta(
 
     print('success')
 
-def generate_negative_peaks_per_target(
-    remap_file,
-    *,
-    output_folder = './negative-peaks-per-target',
-    exp_target_cell_type_col = 'column_4',
-    id_column = 'column_5'
-):
-    output_folder = Path(output_folder)
-    output_folder.mkdir(exist_ok = True, parents = True)
-
-    df = read_bed(remap_file)
-    target_experiments = df.get_column(exp_target_cell_type_col).unique().to_list()
-
-    for target_experiment in target_experiments:
-        filtered_df = df.filter(pl.col(exp_target_cell_type_col) == target_experiment)
-
-        target_bed_path = str(output_folder / f'{target_experiment}.bed')
-        negative_peak_path = str(output_folder / f'{target_experiment}.negative.bed')
-
-        save_bed(filtered_df, target_bed_path)
-        filter_bed_file_by_(remap_file, target_bed_path, negative_peak_path)
-        os.remove(target_bed_path)
-
-        neg_df = read_bed(negative_peak_path)
-        np_array = neg_df.get_column(id_column).to_numpy()
-        np.save(str(output_folder / target_experiment), np_array)
-        os.remove(negative_peak_path)
-
-    print('success')
-
 # dataset for remap data - all peaks
 
 class RemapAllPeakDataset(Dataset):
