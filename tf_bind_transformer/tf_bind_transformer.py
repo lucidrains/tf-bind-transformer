@@ -116,9 +116,11 @@ class ReadValueMLP(nn.Module):
         *,
         fourier_dims = 256,
         norm_factor_fourier = 50,
-        norm_factor_linear = 8000
+        norm_factor_linear = 8000,
+        eps = 1e-20
     ):
         super().__init__()
+        self.eps = eps
         self.fourier_dims = fourier_dims
         self.norm_factor_fourier = norm_factor_fourier
         self.norm_factor_linear = norm_factor_linear
@@ -138,7 +140,7 @@ class ReadValueMLP(nn.Module):
     def forward(self, logits, peaks_nr, read_value):
         logits = self.logits_norm(logits)
 
-        peaks_nr_log_space = torch.log(peaks_nr)
+        peaks_nr_log_space = torch.log(peaks_nr + self.eps)
 
         peaks_nr = rearrange(peaks_nr, '... -> (...)')
         peaks_nr_encoded = fourier_encode(peaks_nr / self.norm_factor_fourier, self.fourier_dims)
@@ -235,7 +237,7 @@ class AdapterModel(nn.Module):
             )
 
             self.to_read_value_aux_loss = ReadValueMLP(
-                dim = enformer_dim,
+                dim = latent_heads,
                 fourier_dims = fourier_dims
             )
 
