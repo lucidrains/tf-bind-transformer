@@ -459,6 +459,8 @@ class AttentionAdapterModel(nn.Module):
 
         # cross attention
 
+        self.attn_prenorm = nn.LayerNorm(enformer_dim)
+
         self.scale = cross_attn_dim_head ** -0.5
         self.heads = cross_attn_heads
         inner_dim = cross_attn_dim_head * cross_attn_heads
@@ -587,7 +589,8 @@ class AttentionAdapterModel(nn.Module):
 
         # cross attention
 
-        queries, keys, values = self.to_queries(seq_embed), self.to_keys(aa_embed), self.to_values(aa_embed)
+        normed_seq_embed = self.attn_prenorm(seq_embed)
+        queries, keys, values = self.to_queries(normed_seq_embed), self.to_keys(aa_embed), self.to_values(aa_embed)
         queries, keys, values = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), (queries, keys, values))
 
         sim = einsum('b h i d, b h j d -> b h i j', queries, keys) * self.scale
