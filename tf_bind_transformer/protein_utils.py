@@ -111,16 +111,6 @@ def get_esm_repr(proteins, device):
 
     return padded_representations.to(device), masks.to(device)
 
-# get protein dim
-
-def get_protein_embed_dim(model_name):
-    if model_name == 'esm':
-        return ESM_EMBED_DIM
-    elif model_name == 'prot_albert':
-        return PROT_ALBERT_DIM
-    else:
-        raise ValueError(f'{model_name} not in supported models')
-
 # prot-albert 2048 context length
 
 PROT_ALBERT_PATH = 'Rostlab/prot_albert'
