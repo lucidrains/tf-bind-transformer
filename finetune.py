@@ -1,5 +1,5 @@
 from enformer_pytorch import load_pretrained_model
-from tf_bind_transformer import HyperTransformerAdapterModel,AttentionAdapterModel, Trainer
+from tf_bind_transformer import AttentionAdapterModel, Trainer
 
 # instantiate enformer or load pretrained
 
@@ -9,7 +9,7 @@ enformer = load_pretrained_model('preview', target_length = -1)
 
 model = AttentionAdapterModel(
     enformer = enformer,
-    use_esm_embeds = True,
+    use_aa_embeds = True,
     use_free_text_context = True,
     free_text_embed_method = 'mean_pool',
     binary_target = True,
