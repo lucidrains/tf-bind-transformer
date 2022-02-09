@@ -391,7 +391,7 @@ class ScopedNegativePeakDataset(Dataset):
         filter_map_df = remap_df.with_column(pl.when(pl_isin('column_1', get_chr_names(dataset_chr_ids))).then(True).otherwise(False).alias('mask'))
         mask = filter_map_df.get_column('mask').to_numpy()
 
-        assert ~mask.sum() > 0, 'all remap rows filtered out for scoped negative peak dataset'
+        assert (~mask).sum() > 0, 'all remap rows filtered out for scoped negative peak dataset'
 
         self.df = remap_df
         self.chromosome_mask = mask

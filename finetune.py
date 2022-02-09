@@ -33,6 +33,9 @@ TFACTOR_FOLDER = './tfactor.fastas'
 FASTA_FILE_PATH = './hg38.ml.fa'
 NON_PEAK_PATH = './generated-non-peaks.bed'
 
+SCOPED_NEGS_REMAP_PATH = './neg-npy/remap2022.bed'
+SCOPED_NEGS_PATH = './neg-npy'
+
 TRAIN_CHROMOSOMES = [*range(1, 24, 2), 'X'] # train on odd chromosomes
 VALID_CHROMOSOMES = [*range(2, 24, 2)]      # validate on even
 
@@ -52,7 +55,10 @@ trainer = Trainer(
     fasta_file = FASTA_FILE_PATH,
     train_chromosome_ids = TRAIN_CHROMOSOMES,
     valid_chromosome_ids = VALID_CHROMOSOMES,
-    held_out_targets = HELD_OUT_TARGET
+    held_out_targets = HELD_OUT_TARGET,
+    include_scoped_negs = True,
+    scoped_negs_remap_bed_path = SCOPED_NEGS_REMAP_PATH,
+    scoped_negs_path = SCOPED_NEGS_PATH,
 )
 
 # do gradient steps in a while loop
