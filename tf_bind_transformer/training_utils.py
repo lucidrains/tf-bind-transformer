@@ -154,7 +154,10 @@ class Trainer(nn.Module):
         self.valid_dl = get_dataloader(self.valid_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
         self.valid_neg_dl = get_dataloader(self.valid_neg_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
 
-        self.read_value_aux_loss = read_value_aux_loss
+        self.aux_read_value_loss = model.aux_read_value_loss
+
+        if self.aux_read_value_loss:
+            print(f'training with read value aux loss')
 
         self.optim = get_optimizer(model.parameters())
 

@@ -270,6 +270,7 @@ class AdapterModel(nn.Module):
         finetune_enformer = False,
         finetune_enformer_ln_only = False
     ):
+        device = seq.device
         latent_heads = self.latent_heads
 
         # prepare enformer for training
@@ -386,7 +387,7 @@ class AdapterModel(nn.Module):
         loss = self.loss_fn(pred, target.float())
 
         if not self.aux_read_value_loss:
-            return loss, 0.
+            return loss, torch.Tensor([0.]).to(device)
 
         # return prediction if not auto-calculating loss
 
@@ -530,6 +531,7 @@ class AttentionAdapterModel(nn.Module):
         finetune_enformer = False,
         finetune_enformer_ln_only = False
     ):
+        device = seq.device
         h = self.heads
 
         # prepare enformer for training
@@ -639,7 +641,7 @@ class AttentionAdapterModel(nn.Module):
         loss = self.loss_fn(pred, target.float())
 
         if not self.aux_read_value_loss:
-            return loss, 0.
+            return loss, torch.Tensor([0.]).to(device)
 
         # return prediction if not auto-calculating loss
 
