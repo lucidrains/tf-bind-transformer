@@ -153,7 +153,10 @@ def get_single_prot_albert_repr(
     if not PROTEIN_EMBED_USE_CPU:
         encoding = map_values(lambda t: t.cuda(), encoding)
 
-    outputs = model(**encoding, output_hidden_states = True)
+    model.eval()
+    with torch.no_grad():
+        outputs = model(**encoding, output_hidden_states = True)
+
     hidden_state = outputs.hidden_states[hidden_state_index][0]
     return hidden_state
 
