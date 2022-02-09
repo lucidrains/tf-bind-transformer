@@ -227,7 +227,9 @@ loss = model(
 loss.backward()
 ```
 
-## Using Remap Dataset (wip)
+## Generating Negatives
+
+### Generating Hard Negatives
 
 For starters, the `RemapAllPeakDataset` will allow you to load data easily from the full remap peaks bed file for training.
 
@@ -248,6 +250,9 @@ generate_random_ranges_from_fasta(
 )
 ```
 
+### Generating Scoped Negatives - Negatives per Dataset (experiment + target + cell type)
+
+Todo
 
 ## Simple Trainer class for fine-tuning
 
