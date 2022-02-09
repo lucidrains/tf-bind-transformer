@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
   name = 'tf-bind-transformer',
   packages = find_packages(exclude=[]),
-  version = '0.0.44',
+  version = '0.0.45',
   license='MIT',
   description = 'Transformer for Transcription Factor Binding',
   author = 'Phil Wang',
@@ -26,6 +26,7 @@ setup(
     'logavgexp-pytorch',
     'polars',
     'python-dotenv',
+    'sentencepiece',
     'torch>=1.6',
     'transformers>=4.0',
     'tqdm'
