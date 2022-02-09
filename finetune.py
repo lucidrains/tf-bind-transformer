@@ -1,3 +1,8 @@
+from dotenv import load_dotenv
+
+# set path to cache in .env and unset the next comment
+# load_dotenv()
+
 from enformer_pytorch import load_pretrained_model
 from tf_bind_transformer import AttentionAdapterModel, Trainer
 
@@ -14,7 +19,8 @@ model = AttentionAdapterModel(
     free_text_embed_method = 'mean_pool',
     binary_target = True,
     target_mse_loss = False,
-    use_squeeze_excite = True
+    use_squeeze_excite = True,
+    aa_embed_encoder = 'protalbert'
 ).cuda()
 
 

@@ -10,7 +10,7 @@ def exists(val):
 
 # constants
 
-CACHE_PATH = Path(os.getenv('CACHE_PATH', os.path.expanduser('~/.cache.tf.bind.transformer')))
+CACHE_PATH = Path(os.getenv('TF_BIND_CACHE_PATH', os.path.expanduser('~/.cache.tf.bind.transformer')))
 CACHE_PATH.mkdir(exist_ok = True, parents = True)
 
 CLEAR_CACHE = exists(os.getenv('CLEAR_CACHE', None))

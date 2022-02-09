@@ -25,6 +25,7 @@ setup(
     'fair-esm',
     'logavgexp-pytorch',
     'polars',
+    'python-dotenv',
     'torch>=1.6',
     'transformers>=4.0',
     'tqdm'
