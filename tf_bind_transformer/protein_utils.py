@@ -24,6 +24,23 @@ GLOBAL_VARIABLES = {
     'tokenizer': None
 }
 
+# general helper functions
+
+def calc_protein_representations_with_subunits(proteins, get_repr_fn, *, device):
+    representations = []
+
+    for subunits in proteins:
+        subunits = (subunits,) if not isinstance(subunits, tuple) else subunits
+        subunits_representations = list(map(get_repr_fn, subunits))
+        subunits_representations = torch.cat(subunits_representations, dim = 0)
+        representations.append(subunits_representations)
+
+    lengths = [seq_repr.shape[0] for seq_repr in representations]
+    masks = torch.arange(max(lengths), device = device)[None, :] <  torch.tensor(lengths, device = device)[:, None]
+    padded_representations = pad_sequence(representations, batch_first = True)
+
+    return padded_representations.to(device), masks.to(device)
+
 # esm related functions
 
 ESM_MAX_LENGTH = 1024
@@ -98,18 +115,7 @@ def get_esm_repr(proteins, device):
 
     get_protein_repr_fn = cache_fn(get_single_esm_repr, path = 'esm/proteins')
 
-    representations = []
-    for subunits in proteins:
-        subunits = (subunits,) if not isinstance(subunits, tuple) else subunits
-        subunits_representations = list(map(get_protein_repr_fn, subunits))
-        subunits_representations = torch.cat(subunits_representations, dim = 0)
-        representations.append(subunits_representations)
-
-    lengths = [seq_repr.shape[0] for seq_repr in representations]
-    masks = torch.arange(max(lengths), device = device)[None, :] <  torch.tensor(lengths, device = device)[:, None]
-    padded_representations = pad_sequence(representations, batch_first = True)
-
-    return padded_representations.to(device), masks.to(device)
+    return calc_protein_representations_with_subunits(proteins, get_protein_repr_fn, device = device)
 
 # prot-albert 2048 context length
 
@@ -174,13 +180,7 @@ def get_prot_albert_repr(
 
     get_protein_repr_fn = cache_fn(get_single_prot_albert_repr, path = f'proteins/prot_albert')
 
-    representations = [get_protein_repr_fn(protein, max_length = max_length, hidden_state_index = hidden_state_index) for protein in proteins]
-
-    lengths = [seq_repr.shape[0] for seq_repr in representations]
-    masks = torch.arange(max(lengths), device = device)[None, :] <  torch.tensor(lengths, device = device)[:, None]
-    padded_representations = pad_sequence(representations, batch_first = True)
-
-    return padded_representations.to(device), masks.to(device)
+    return calc_protein_representations_with_subunits(proteins, get_protein_repr_fn, device = device)
 
 # alphafold2 functions
 

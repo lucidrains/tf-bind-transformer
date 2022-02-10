@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
   name = 'tf-bind-transformer',
   packages = find_packages(exclude=[]),
-  version = '0.0.49',
+  version = '0.0.51',
   license='MIT',
   description = 'Transformer for Transcription Factor Binding',
   author = 'Phil Wang',

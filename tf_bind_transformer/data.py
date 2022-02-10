@@ -565,7 +565,7 @@ def collate_dl_outputs(*dl_outputs):
         if isinstance(entry[0], torch.Tensor):
             entry = torch.cat(entry, dim = 0)
         else:
-            entry = tuple([sub_el for el in entry for sub_el in el])
+            entry = (sub_el for el in entry for sub_el in el)
         ret.append(entry)
     return tuple(ret)
 
@@ -575,6 +575,10 @@ def cycle(loader):
             yield data
 
 def get_dataloader(ds, cycle_iter = False, **kwargs):
-    dl = DataLoader(ds, collate_fn = collate_fn, drop_last = True, **kwargs)
+    dataset_len = len(ds)
+    batch_size = kwargs.get('batch_size')
+    drop_last = dataset_len > batch_size
+
+    dl = DataLoader(ds, collate_fn = collate_fn, drop_last = drop_last, **kwargs)
     wrapper = cycle if cycle_iter else iter
     return wrapper(dl)
