@@ -1,6 +1,7 @@
 import torch
 import os
 import re
+from functools import partial
 import esm
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AlbertTokenizer, AutoModelForMaskedLM, logging
@@ -11,6 +12,9 @@ def exists(val):
 
 def map_values(fn, dictionary):
     return {k: fn(v) for k, v in dictionary.items()}
+
+def to_device(t, *, device):
+    return t.to(device)
 
 PROTEIN_EMBED_USE_CPU = os.getenv('PROTEIN_EMBED_USE_CPU', None) is not None
 
@@ -32,6 +36,7 @@ def calc_protein_representations_with_subunits(proteins, get_repr_fn, *, device)
     for subunits in proteins:
         subunits = (subunits,) if not isinstance(subunits, tuple) else subunits
         subunits_representations = list(map(get_repr_fn, subunits))
+        subunits_representations = list(map(partial(to_device, device = device), subunits_representations))
         subunits_representations = torch.cat(subunits_representations, dim = 0)
         representations.append(subunits_representations)
 
