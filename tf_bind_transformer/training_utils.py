@@ -59,7 +59,7 @@ class Trainer(nn.Module):
         valid_sample_frac = 1.,
         remap_sample_frac = 1.,
         shift_aug_range = (-2, 2),
-        rc_aug = True,
+        rc_aug = False,
         experiments_json_path = None,
         read_value_aux_loss = False,
         checkpoint_filename = './checkpoint.pt',
