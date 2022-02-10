@@ -20,7 +20,7 @@ from tf_bind_transformer.cache_utils import cache_fn
 from tf_bind_transformer.protein_utils import get_protein_embedder
 from tf_bind_transformer.context_utils import get_text_repr, get_contextual_dim
 
-from tf_bind_transformer.attention import FeedForward, JointCrossAttention, CrossAttention
+from tf_bind_transformer.attention import FeedForward, JointCrossAttentionBlock, CrossAttention
 
 # helper functions
 
@@ -209,6 +209,14 @@ class AdapterModel(nn.Module):
         else:
             assert exists(aa_embed_dim), 'AA embedding dimensions must be set if not using ESM'
 
+        # joint attn
+
+        self.joint_cross_attn = JointCrossAttentionBlock(
+            dim = enformer_dim,
+            context_dim = aa_embed_dim,
+            dropout = dropout
+        )
+
         # latents
 
         self.latent_heads = latent_heads
@@ -322,6 +330,12 @@ class AdapterModel(nn.Module):
                 return_cls_token = (self.free_text_embed_method == 'cls'),
                 device = seq.device
             )
+
+        seq_embed, aa_embed = self.joint_cross_attn(
+            seq_embed,
+            context = aa_embed,
+            context_mask = aa_mask
+        )
 
         # project both embeddings into shared latent space
 
