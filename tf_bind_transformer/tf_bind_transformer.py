@@ -9,6 +9,7 @@ from einops import rearrange, reduce, repeat
 from einops.layers.torch import Rearrange, Reduce
 
 from contextlib import contextmanager
+
 from enformer_pytorch import Enformer
 from enformer_pytorch.enformer_pytorch import poisson_loss, pearson_corr_coef
 from enformer_pytorch.finetune import freeze_batchnorms_, freeze_all_but_layernorms_
@@ -18,6 +19,8 @@ from logavgexp_pytorch import logavgexp
 from tf_bind_transformer.cache_utils import cache_fn
 from tf_bind_transformer.protein_utils import get_protein_embedder
 from tf_bind_transformer.context_utils import get_text_repr, get_contextual_dim
+
+from tf_bind_transformer.attention import FeedForward, JointCrossAttention
 
 # helper functions
 
@@ -475,12 +478,7 @@ class AttentionAdapterModel(nn.Module):
 
         self.attn_dropout = nn.Dropout(dropout)
 
-        self.feedforward = nn.Sequential(
-            nn.LayerNorm(enformer_dim),
-            nn.Linear(enformer_dim, enformer_dim * 2),
-            nn.GELU(),
-            nn.Linear(enformer_dim * 2, enformer_dim)
-        )
+        self.feedforward = FeedForward(enformer_dim, dropout = dropout)
 
         # to predictions
 

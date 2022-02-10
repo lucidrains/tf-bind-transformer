@@ -9,6 +9,18 @@ def exists(val):
 def default(val, d):
     return val if exists(val) else d
 
+# classes
+
+def FeedForward(dim, mult = 4, dropout = 0.):
+    return nn.Sequential(
+        nn.Linear(dim, dim * mult),
+        nn.GELU(),
+        nn.Dropout(dropout),
+        nn.Linear(dim * mult, dim)
+    )
+
+# joint cross attention - have two sequences attend to each other with 1 attention step
+
 class JointCrossAttention(nn.Module):
     def __init__(
         self,
@@ -16,13 +28,21 @@ class JointCrossAttention(nn.Module):
         dim,
         heads = 8,
         dim_head = 64,
-        context_dim = None
+        context_dim = None,
+        dropout = 0.
     ):
         super().__init__()
         context_dim = default(context_dim, dim)
+
+        self.norm = nn.LayerNorm(dim)
+        self.context_norm = nn.LayerNorm(context_dim)
+
         self.heads = heads
         self.scale = dim_head ** -0.5
         inner_dim = dim_head * heads
+
+        self.dropout = nn.Dropout(dropout)
+        self.context_dropout = nn.Dropout(dropout)
 
         self.to_qk = nn.Linear(dim, inner_dim, bias = False)
         self.context_to_qk = nn.Linear(context_dim, inner_dim, bias = False)
@@ -41,6 +61,9 @@ class JointCrossAttention(nn.Module):
         context_mask = None
     ):
         b, i, j, h, device = x.shape[0], x.shape[-2], context.shape[-2], self.heads, x.device
+
+        x = self.norm(x)
+        context = self.context_norm(context)
 
         # get shared query/keys and values for sequence and context
 
@@ -69,6 +92,9 @@ class JointCrossAttention(nn.Module):
 
         attn = sim.softmax(dim = -1)
         context_attn = sim.softmax(dim = -2)
+
+        attn = self.dropout(attn)
+        context_attn = self.context_dropout(context_attn)
 
         # src sequence aggregates values from context, context aggregates values from src sequence
 
