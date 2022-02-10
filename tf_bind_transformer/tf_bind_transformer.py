@@ -20,7 +20,7 @@ from tf_bind_transformer.cache_utils import cache_fn
 from tf_bind_transformer.protein_utils import get_protein_embedder
 from tf_bind_transformer.context_utils import get_text_repr, get_contextual_dim
 
-from tf_bind_transformer.attention import FeedForward, JointCrossAttention
+from tf_bind_transformer.attention import FeedForward, JointCrossAttention, CrossAttention
 
 # helper functions
 
@@ -468,18 +468,13 @@ class AttentionAdapterModel(nn.Module):
 
         # cross attention
 
-        self.attn_prenorm = nn.LayerNorm(enformer_dim)
-
-        self.scale = cross_attn_dim_head ** -0.5
-        self.heads = cross_attn_heads
-        inner_dim = cross_attn_dim_head * cross_attn_heads
-
-        self.to_queries = nn.Linear(enformer_dim, inner_dim, bias = False)
-        self.to_keys = nn.Linear(aa_embed_dim, inner_dim, bias = False)
-        self.to_values = nn.Linear(aa_embed_dim, inner_dim, bias = False)
-        self.to_out = nn.Linear(inner_dim, enformer_dim)
-
-        self.attn_dropout = nn.Dropout(dropout)
+        self.cross_attn = CrossAttention(
+            dim = enformer_dim,
+            heads = cross_attn_heads,
+            dim_head = cross_attn_dim_head,
+            context_dim = aa_embed_dim,
+            dropout = dropout
+        )
 
         self.feedforward = FeedForward(enformer_dim, dropout = dropout)
 
@@ -533,7 +528,6 @@ class AttentionAdapterModel(nn.Module):
         finetune_enformer_ln_only = False
     ):
         device = seq.device
-        h = self.heads
 
         # prepare enformer for training
         # - set to eval and no_grad if not fine-tuning
@@ -595,24 +589,11 @@ class AttentionAdapterModel(nn.Module):
 
         # cross attention
 
-        normed_seq_embed = self.attn_prenorm(seq_embed)
-        queries, keys, values = self.to_queries(normed_seq_embed), self.to_keys(aa_embed), self.to_values(aa_embed)
-        queries, keys, values = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), (queries, keys, values))
-
-        sim = einsum('b h i d, b h j d -> b h i j', queries, keys) * self.scale
-
-        aa_mask = rearrange(aa_mask, 'b j -> b 1 1 j')
-
-        sim = sim.masked_fill(~aa_mask, -torch.finfo(sim.dtype).max)
-
-        attn = sim.softmax(dim = -1)
-        attn = self.attn_dropout(attn)
-
-        out = einsum('b h i j, b h j d -> b h i d', attn, values)
-        out = rearrange(out, 'b h n d -> b n (h d)')
-        out = self.to_out(out)
-
-        seq_embed = seq_embed + out
+        seq_embed = self.cross_attn(
+            seq_embed,
+            context = aa_embed,
+            context_mask = aa_mask
+        ) + seq_embed
 
         # condition one more time
 
