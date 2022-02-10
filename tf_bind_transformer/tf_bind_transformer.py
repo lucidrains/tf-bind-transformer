@@ -30,6 +30,8 @@ def exists(val):
 def default(val, d):
     return val if exists(val) else d
 
+def identity(fn, *args, **kwargs):
+    return fn
 
 @contextmanager
 def null_context():
@@ -291,7 +293,8 @@ class AdapterModel(nn.Module):
         else:
             self.enformer.eval()
             enformer_context = torch.no_grad()
-            enformer_forward = cache_enformer_forward(enformer_forward)
+            enformer_forward_wrapper = cache_enformer_forward if self.training else identity
+            enformer_forward = enformer_forward_wrapper(enformer_forward)
 
         # genetic sequence embedding
 
@@ -547,7 +550,8 @@ class AttentionAdapterModel(nn.Module):
         else:
             self.enformer.eval()
             enformer_context = torch.no_grad()
-            enformer_forward = cache_enformer_forward(enformer_forward)
+            enformer_forward_wrapper = cache_enformer_forward if self.training else identity
+            enformer_forward = enformer_forward_wrapper(enformer_forward)
 
         # genetic sequence embedding
 
