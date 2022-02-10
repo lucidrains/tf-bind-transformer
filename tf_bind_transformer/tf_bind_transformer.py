@@ -162,6 +162,73 @@ class ReadValueMLP(nn.Module):
 
 # FILIP adapter model
 
+class FILIP(nn.Module):
+    def __init__(
+        self,
+        dim,
+        context_dim,
+        heads,
+        dim_head = 64,
+        dropout = 0.
+    ):
+        super().__init__()
+        self.heads = heads
+        inner_latent_dim = heads * dim_head
+
+        self.to_latent_w = nn.Parameter(torch.randn(dim, inner_latent_dim))
+        self.to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
+
+        self.context_to_latent_w = nn.Parameter(torch.randn(context_dim, inner_latent_dim))
+        self.context_to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
+
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(
+        self,
+        x,
+        context,
+        context_mask = None
+    ):
+        heads = self.heads
+
+        x = einsum('b n d, d e -> b n e', x, self.to_latent_w)
+        x = x + self.to_latent_b
+
+        x = rearrange(x, 'b n (h d) -> b h n d', h = heads)
+
+        context = einsum('b n d, d e -> b n e', context, self.context_to_latent_w)
+        context = context + self.context_to_latent_b
+
+        context = rearrange(context, 'b n (h d) -> b h n d', h = heads)
+
+        context, x = map(l2norm, (context, x))
+
+        # fine grained interaction between dna and protein sequences
+        # FILIP https://arxiv.org/abs/2111.07783
+
+        if x.shape[0] == 1:
+            # in the case one passes in 1 genomic sequence track
+            # but multiple factors + contexts, as in enformer training
+            x = rearrange(x, '1 ... -> ...')
+            einsum_eq = 'h i d, b h j d -> b h i j'
+        else:
+            einsum_eq = 'b h i d, b h j d -> b h i j'
+
+        interactions = einsum(einsum_eq, x, context)
+
+        # dropout
+
+        interactions = self.dropout(interactions)
+
+        # reduction
+
+        if exists(context_mask):
+            context_mask = rearrange(context_mask, 'b j -> b 1 1 j')
+
+        interactions = logavgexp(interactions, mask = context_mask, dim = -1)
+        interactions = rearrange(interactions, 'b h i -> b i h')
+        return interactions
+
 class AdapterModel(nn.Module):
     def __init__(
         self,
@@ -219,19 +286,16 @@ class AdapterModel(nn.Module):
 
         # latents
 
-        self.latent_heads = latent_heads
-        inner_latent_dim = latent_heads * latent_dim
-
-        self.seq_embed_to_latent_w = nn.Parameter(torch.randn(enformer_dim, inner_latent_dim))
-        self.seq_embed_to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
-
-        self.aa_seq_embed_to_latent_w = nn.Parameter(torch.randn(aa_embed_dim, inner_latent_dim))
-        self.aa_seq_embed_to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
+        self.filip = FILIP(
+            dim = enformer_dim,
+            context_dim = aa_embed_dim,
+            dim_head = latent_dim,
+            heads = latent_heads,
+            dropout = dropout
+        )
 
         self.to_logits_w = nn.Parameter(torch.randn(latent_heads, latent_heads))
         self.contextual_projection = nn.Linear(contextual_embed_dim, latent_heads * latent_heads)
-
-        self.dropout = nn.Dropout(dropout)
 
         # to prediction
 
@@ -284,7 +348,6 @@ class AdapterModel(nn.Module):
         finetune_enformer_ln_only = False
     ):
         device = seq.device
-        latent_heads = self.latent_heads
 
         # prepare enformer for training
         # - set to eval and no_grad if not fine-tuning
@@ -339,42 +402,11 @@ class AdapterModel(nn.Module):
 
         # project both embeddings into shared latent space
 
-        seq_latent = einsum('b n d, d e -> b n e', seq_embed, self.seq_embed_to_latent_w)
-        seq_latent = seq_latent + self.seq_embed_to_latent_b
-
-        seq_latent = rearrange(seq_latent, 'b n (h d) -> b h n d', h = latent_heads)
-
-        aa_latent = einsum('b n d, d e -> b n e', aa_embed, self.aa_seq_embed_to_latent_w)
-        aa_latent = aa_latent + self.aa_seq_embed_to_latent_b
-
-        aa_latent = rearrange(aa_latent, 'b n (h d) -> b h n d', h = latent_heads)
-
-        aa_latent, seq_latent = map(l2norm, (aa_latent, seq_latent))
-
-        # fine grained interaction between dna and protein sequences
-        # FILIP https://arxiv.org/abs/2111.07783
-
-        if seq_latent.shape[0] == 1:
-            # in the case one passes in 1 genomic sequence track
-            # but multiple factors + contexts, as in enformer training
-            seq_latent = rearrange(seq_latent, '1 ... -> ...')
-            einsum_eq = 'h i d, b h j d -> b h i j'
-        else:
-            einsum_eq = 'b h i d, b h j d -> b h i j'
-
-        interactions = einsum(einsum_eq, seq_latent, aa_latent)
-
-        # dropout
-
-        interactions = self.dropout(interactions)
-
-        # reduction
-
-        if exists(aa_mask):
-            aa_mask = rearrange(aa_mask, 'b j -> b 1 1 j')
-
-        interactions = logavgexp(interactions, mask = aa_mask, dim = -1)
-        interactions = rearrange(interactions, 'b h i -> b i h')
+        interactions = self.filip(
+            seq_embed,
+            aa_embed,
+            context_mask = aa_mask
+        )
 
         # derive contextual gating, from hypergrids paper
 
