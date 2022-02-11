@@ -236,6 +236,57 @@ def generate_random_ranges_from_fasta(
 
     print('success')
 
+# context string creator class
+
+class ContextDataset(Dataset):
+    def __init__(
+        self,
+        *,
+        biotypes_metadata_path = None,
+        include_biotypes_metadata_in_context = False,
+        include_biotypes_metadata_columns = [],
+        biotypes_metadata_delimiter = ' | ',
+    ):
+        self.include_biotypes_metadata_in_context = include_biotypes_metadata_in_context
+        self.include_biotypes_metadata_columns = include_biotypes_metadata_columns
+        self.biotypes_metadata_delimiter = biotypes_metadata_delimiter
+
+        if include_biotypes_metadata_in_context:
+            assert len(self.include_biotypes_metadata_columns) > 0, 'must have more than one biotype metadata column to include'
+            assert exists(biotypes_metadata_path), 'biotypes metadata path must be supplied if to be included in context string'
+
+            p = Path(biotypes_metadata_path)
+
+            if p.suffix == '.csv':
+                sep = ','
+            elif p.suffix == '.tsv':
+                sep = '\t'
+            else:
+                raise ValueError(f'invalid suffix {p.suffix} for biotypes')
+
+            self.df = pl.read_csv(str(p), sep = sep)
+
+    def __len__():
+        return len(self.df) if self.include_biotypes_metadata_in_context else -1
+
+    def __getitem__(self, biotype):
+        if not self.include_biotypes_metadata_in_context:
+            return biotype
+
+        col_indices = list(map(self.df.columns.index, self.include_biotypes_metadata_columns))
+        filtered = self.df.filter(pl.col('biotype') == biotype)
+
+        if len(filtered) == 0:
+            print(f'no rows found for {biotype} in biotype metadata file')
+            return biotype
+
+        row = filtered.row(0)
+        columns = list(map(lambda t: row[t], col_indices))
+
+        context_string = self.biotypes_metadata_delimiter.join([biotype, *columns])
+        print(context_string)
+        return context_string
+
 # dataset for remap data - all peaks
 
 class RemapAllPeakDataset(Dataset):
@@ -252,6 +303,10 @@ class RemapAllPeakDataset(Dataset):
         include_cell_types = None,
         remap_df_frac = 1.,
         experiments_json_path = None,
+        include_biotypes_metadata_in_context = False,
+        biotypes_metadata_path = None,
+        include_biotypes_metadata_columns = [],
+        biotypes_metadata_delimiter = ' | ',
         **kwargs
     ):
         super().__init__()
@@ -304,6 +359,15 @@ class RemapAllPeakDataset(Dataset):
 
         self.experiments_index = fetch_experiments_index(experiments_json_path)
 
+        # context string creator
+
+        self.context_ds = ContextDataset(
+            include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
+            biotypes_metadata_path = biotypes_metadata_path,
+            include_biotypes_metadata_columns = include_biotypes_metadata_columns,
+            biotypes_metadata_delimiter = biotypes_metadata_delimiter
+        )
+
     def __len__(self):
         return len(self.df)
 
@@ -314,7 +378,7 @@ class RemapAllPeakDataset(Dataset):
 
         seq = self.fasta(chr_name, begin, end)
         aa_seq = self.factor_ds[target]
-        context_str = cell_type
+        context_str = self.context_ds[cell_type]
 
         read_value = torch.Tensor([reading])
 
@@ -375,6 +439,10 @@ class ScopedNegativePeakDataset(Dataset):
         include_targets = None,
         exclude_cell_types = None,
         include_cell_types = None,
+        include_biotypes_metadata_in_context = False,
+        biotypes_metadata_path = None,
+        include_biotypes_metadata_columns = [],
+        biotypes_metadata_delimiter = ' | ',
         **kwargs
     ):
         super().__init__()
@@ -427,6 +495,15 @@ class ScopedNegativePeakDataset(Dataset):
         self.fasta = FastaInterval(fasta_file = fasta_file, **kwargs)
         self.experiments_index = fetch_experiments_index(experiments_json_path)
 
+        # context string creator
+
+        self.context_ds = ContextDataset(
+            include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
+            biotypes_metadata_path = biotypes_metadata_path,
+            include_biotypes_metadata_columns = include_biotypes_metadata_columns,
+            biotypes_metadata_delimiter = biotypes_metadata_delimiter
+        )
+
     def __len__(self):
         return len(self.exp_target_cell_negatives)
 
@@ -452,7 +529,7 @@ class ScopedNegativePeakDataset(Dataset):
         seq = self.fasta(chr_name, begin, end)
 
         aa_seq = self.factor_ds[target]
-        context_str = cell_type
+        context_str = self.context_ds[cell_type]
 
         peaks_nr = self.experiments_index.get(exp_target_cell, 0.)
         peaks_nr = torch.Tensor([peaks_nr])
@@ -481,6 +558,10 @@ class NegativePeakDataset(Dataset):
         include_cell_types = None,
         exp_target_cell_column = 'column_4',
         experiments_json_path = None,
+        include_biotypes_metadata_in_context = False,
+        biotypes_metadata_path = None,
+        include_biotypes_metadata_columns = [],
+        biotypes_metadata_delimiter = ' | ',
         **kwargs
     ):
         super().__init__()
@@ -530,6 +611,15 @@ class NegativePeakDataset(Dataset):
 
         self.experiments_index = fetch_experiments_index(experiments_json_path)
 
+        # context string creator
+
+        self.context_ds = ContextDataset(
+            include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
+            biotypes_metadata_path = biotypes_metadata_path,
+            include_biotypes_metadata_columns = include_biotypes_metadata_columns,
+            biotypes_metadata_delimiter = biotypes_metadata_delimiter
+        )
+
     def __len__(self):
         return len(self.neg_df)
 
@@ -541,7 +631,7 @@ class NegativePeakDataset(Dataset):
 
         seq = self.fasta(chr_name, begin, end)
         aa_seq = self.factor_ds[target]
-        context_str = cell_type
+        context_str = self.context_ds[cell_type]
 
         read_value = torch.Tensor([0.])
 
