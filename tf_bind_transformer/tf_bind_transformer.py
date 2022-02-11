@@ -271,6 +271,7 @@ class AdapterModel(nn.Module):
         target_mse_loss = False,
         aux_read_value_loss = False,
         read_value_aux_loss_weight = 0.1,
+        joint_cross_attn_depth = 1,
         fourier_dims = 256,
         condition_squeeze_excite = False,
         condition_film = False,
@@ -315,11 +316,16 @@ class AdapterModel(nn.Module):
 
         # joint attn
 
-        self.joint_cross_attn = JointCrossAttentionBlock(
-            dim = enformer_dim,
-            context_dim = aa_embed_dim,
-            dropout = dropout
-        )
+        self.joint_cross_attns = nn.ModuleList([])
+
+        for _ in range(joint_cross_attn_depth):
+            attn = JointCrossAttentionBlock(
+                dim = enformer_dim,
+                context_dim = aa_embed_dim,
+                dropout = dropout
+            )
+
+            self.joint_cross_attns.append(attn)
 
         # latents
 
@@ -446,11 +452,12 @@ class AdapterModel(nn.Module):
 
         # joint cross attention
 
-        seq_embed, aa_embed = self.joint_cross_attn(
-            seq_embed,
-            context = aa_embed,
-            context_mask = aa_mask
-        )
+        for cross_attn in self.joint_cross_attns:
+            seq_embed, aa_embed = cross_attn(
+                seq_embed,
+                context = aa_embed,
+                context_mask = aa_mask
+            )
 
         # project both embeddings into shared latent space
 
