@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 # load_dotenv()
 
 from enformer_pytorch import load_pretrained_model
-from tf_bind_transformer import AttentionAdapterModel, Trainer
+from tf_bind_transformer import AdapterModel, Trainer
 
 # instantiate enformer or load pretrained
 
@@ -12,7 +12,7 @@ enformer = load_pretrained_model('preview', target_length = -1)
 
 # instantiate model wrapper that takes in enformer
 
-model = AttentionAdapterModel(
+model = AdapterModel(
     enformer = enformer,
     use_aa_embeds = True,
     use_free_text_context = True,
