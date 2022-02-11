@@ -37,10 +37,11 @@ if __name__ == '__main__':
     processed_genes = set([*map(lambda t: str(t).split('.')[0], fasta_files)])
 
     for unparsed_gene_name in genes:
-        if gene_name in processed_genes:
-            continue
-
         for gene_name in parse_gene_name(unparsed_gene_name):
+
+            if gene_name in processed_genes:
+                continue
+
             # fetch uniprot id based on gene id
 
             if gene_name not in GENE_NAME_TO_ID_OVERRIDE:
