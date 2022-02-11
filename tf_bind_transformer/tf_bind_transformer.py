@@ -160,6 +160,29 @@ class ReadValueMLP(nn.Module):
 
         return F.mse_loss(pred, read_value)
 
+class HypergridLinear(nn.Module):
+    def __init__(
+        self,
+        dim,
+        dim_out,
+        *,
+        context_dim
+    ):
+        super().__init__()
+        self.weights = nn.Parameter(torch.randn(dim, dim_out))
+        self.contextual_projection = nn.Linear(context_dim, dim * dim_out)
+
+    def forward(self, x, context):
+        # derive contextual gating, from hypergrids paper
+
+        gating = self.contextual_projection(context).sigmoid()
+        gating = rearrange(gating, 'b (i o) -> b i o', i = int(math.sqrt(gating.shape[-1])))
+
+        # gate interactions projection with context
+
+        to_logits_w = rearrange(self.weights, 'i o -> 1 i o') * gating
+        return einsum('b n d, b d e -> b n e', x, to_logits_w)
+
 # FILIP adapter model
 
 class FILIP(nn.Module):
@@ -249,6 +272,9 @@ class AdapterModel(nn.Module):
         aux_read_value_loss = False,
         read_value_aux_loss_weight = 0.1,
         fourier_dims = 256,
+        condition_squeeze_excite = False,
+        condition_film = False,
+        condition_hypergrid = False,
         **kwargs
     ):
         super().__init__()
@@ -276,6 +302,17 @@ class AdapterModel(nn.Module):
         else:
             assert exists(aa_embed_dim), 'AA embedding dimensions must be set if not using ESM'
 
+        # conditioning
+
+        self.cond_genetic = None
+        self.cond_protein = None
+
+        if condition_squeeze_excite or condition_film:
+            condition_klass = SqueezeExcitation if condition_squeeze_excite else FiLM
+
+            self.cond_genetic  = condition_klass(contextual_embed_dim, enformer_dim)
+            self.cond_protein  = condition_klass(contextual_embed_dim, aa_embed_dim)
+
         # joint attn
 
         self.joint_cross_attn = JointCrossAttentionBlock(
@@ -294,8 +331,12 @@ class AdapterModel(nn.Module):
             dropout = dropout
         )
 
-        self.to_logits_w = nn.Parameter(torch.randn(latent_heads, latent_heads))
-        self.contextual_projection = nn.Linear(contextual_embed_dim, latent_heads * latent_heads)
+        # hypergrid conditioning
+
+        self.linear_with_hypergrid = None
+
+        if exists(condition_hypergrid):
+            self.linear_with_hypergrid = HypergridLinear(latent_heads, latent_heads, context_dim = contextual_embed_dim)
 
         # to prediction
 
@@ -394,6 +435,17 @@ class AdapterModel(nn.Module):
                 device = seq.device
             )
 
+        # contextual conditioning
+        # film or squeeze-excite for both genetic and protein sequences
+
+        if exists(self.cond_genetic):
+            seq_embed = self.cond_genetic(seq_embed, contextual_embed)
+
+        if exists(self.cond_protein):
+            aa_embed = self.cond_protein(aa_embed, contextual_embed, mask = aa_mask)
+
+        # joint cross attention
+
         seq_embed, aa_embed = self.joint_cross_attn(
             seq_embed,
             context = aa_embed,
@@ -408,246 +460,10 @@ class AdapterModel(nn.Module):
             context_mask = aa_mask
         )
 
-        # derive contextual gating, from hypergrids paper
 
-        gating = self.contextual_projection(contextual_embed).sigmoid()
-        gating = rearrange(gating, 'b (i o) -> b i o', i = int(math.sqrt(gating.shape[-1])))
+        # linear with hypergrid conditioning
 
-        # gate interactions projection with context
-
-        to_logits_w = rearrange(self.to_logits_w, 'i o -> 1 i o') * gating
-        logits = einsum('b n d, b d e -> b n e', interactions, to_logits_w)
-
-        # to *-seq prediction
-
-        pred = self.to_pred(logits)
-
-        if not exists(target):
-            return pred
-
-        if exists(target) and return_corr_coef:
-            return pearson_corr_coef(pred, target)
-
-        if exists(target) and not self.binary_target:
-            return poisson_loss(pred, target)
-
-        if not exists(target):
-            return pred
-
-        # binary loss w/ optional auxiliary loss
-
-        loss = self.loss_fn(pred, target.float())
-
-        if not self.aux_read_value_loss:
-            return loss, torch.Tensor([0.]).to(device)
-
-        # return prediction if not auto-calculating loss
-
-        assert exists(read_value) and exists(peaks_nr), 'peaks NR must be supplied if doing auxiliary read value loss'
-
-        aux_loss = self.to_read_value_aux_loss(
-            logits,
-            peaks_nr,
-            read_value = read_value
-        )
-
-        return loss, aux_loss
-
-
-# cross attention based tf-bind-transformer
-
-class AttentionAdapterModel(nn.Module):
-    def __init__(
-        self,
-        *,
-        enformer,
-        aa_embed_dim = None,
-        aa_embed_encoder = 'esm',
-        contextual_embed_dim = None,
-        cross_attn_dim_head = 64,
-        cross_attn_heads = 8,
-        use_aa_embeds = False,
-
-        use_free_text_context = False,
-        free_text_context_encoder = 'pubmed',
-        free_text_embed_method = 'cls',
-        dropout = 0.,
-        use_squeeze_excite = False,
-        binary_target = False,
-        target_mse_loss = False,
-        aux_read_value_loss = False,
-        read_value_aux_loss_weight = 0.1,
-        fourier_dims = 256
-    ):
-        super().__init__()
-        assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
-        self.enformer = enformer
-        enformer_dim = enformer.dim * 2
-
-        self.norm_seq_embed = nn.LayerNorm(enformer_dim)
-
-        # contextual embedding related variables
-
-        assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
-        self.free_text_embed_method = free_text_embed_method
-        self.use_free_text_context = use_free_text_context
-        contextual_embed_dim = default(contextual_embed_dim, get_contextual_dim(free_text_context_encoder))
-
-        # protein embedding related variables
-
-        self.use_aa_embeds = use_aa_embeds
-        self.aa_embed_config = get_protein_embedder(aa_embed_encoder)
-        self.get_aa_embed = self.aa_embed_config['fn']
-
-        if use_aa_embeds:
-            aa_embed_dim = self.aa_embed_config['dim']
-        else:
-            assert exists(aa_embed_dim), 'AA embedding dimensions must be set if not using ESM'
-
-        # film
-
-        condition_klass = SqueezeExcitation if use_squeeze_excite else FiLM
-
-        self.cond_genetic  = condition_klass(contextual_embed_dim, enformer_dim)
-        self.cond_genetic2 = condition_klass(contextual_embed_dim, enformer_dim)
-        self.cond_protein  = condition_klass(contextual_embed_dim, aa_embed_dim)
-
-        # cross attention
-
-        self.cross_attn = CrossAttention(
-            dim = enformer_dim,
-            heads = cross_attn_heads,
-            dim_head = cross_attn_dim_head,
-            context_dim = aa_embed_dim,
-            dropout = dropout
-        )
-
-        self.feedforward = FeedForward(enformer_dim, dropout = dropout)
-
-        # to predictions
-
-        self.binary_target = binary_target
-        self.aux_read_value_loss = aux_read_value_loss
-        self.read_value_aux_loss_weight = read_value_aux_loss_weight
-
-        if binary_target:
-            self.loss_fn = F.binary_cross_entropy_with_logits if not target_mse_loss else F.mse_loss
-
-            self.to_pred = nn.Sequential(
-                Reduce('... n d -> ... d', 'mean'),
-                nn.LayerNorm(enformer_dim),
-                nn.Linear(enformer_dim, 1),
-                Rearrange('... 1 -> ...')
-            )
-
-            self.to_read_value_aux_loss = ReadValueMLP(
-                dim = enformer_dim,
-                fourier_dims = fourier_dims
-            )
-        else:
-            self.to_pred = nn.Sequential(
-                nn.Linear(enformer_dim, 1),
-                Rearrange('... 1 -> ...'),
-                nn.Softplus()
-            )
-
-    def combine_losses(self, loss, aux_loss):
-        if not self.aux_read_value_loss:
-            return loss
-
-        return loss + self.read_value_aux_loss_weight * aux_loss
-
-    def forward(
-        self,
-        seq,
-        *,
-        aa = None,
-        aa_embed = None,
-        contextual_embed = None,
-        contextual_free_text = None,
-        aa_mask = None,
-        target = None,
-        read_value = None,
-        peaks_nr = None,
-        return_corr_coef = False,
-        finetune_enformer = False,
-        finetune_enformer_ln_only = False
-    ):
-        device = seq.device
-
-        # prepare enformer for training
-        # - set to eval and no_grad if not fine-tuning
-        # - always freeze the batchnorms
-
-        freeze_batchnorms_(self.enformer)
-        enformer_forward = self.enformer.forward
-
-        if finetune_enformer:
-            enformer_context = null_context()
-        elif finetune_enformer_ln_only:
-            enformer_context = null_context()
-            freeze_all_but_layernorms_(self.enformer)
-        else:
-            self.enformer.eval()
-            enformer_context = torch.no_grad()
-            enformer_forward_wrapper = cache_enformer_forward if self.training else identity
-            enformer_forward = enformer_forward_wrapper(enformer_forward)
-
-        # genetic sequence embedding
-
-        with enformer_context:
-            seq_embed = enformer_forward(seq, return_only_embeddings = True)
-
-        seq_embed = self.norm_seq_embed(seq_embed)
-
-        # protein related embeddings
-
-        if self.use_aa_embeds:
-            assert exists(aa), 'aa must be passed in as tensor of integers from 0 - 20 (20 being padding)'
-            aa_embed, aa_mask = self.get_aa_embed(aa, device = seq.device)
-        else:
-            assert exists(aa_embed), 'protein embeddings must be given as aa_embed'
-
-        # free text embeddings, for cell types and experimental params
-
-        if not exists(contextual_embed):
-            assert self.use_free_text_context, 'use_free_text_context must be set to True if one is not passing in contextual_embed tensor'
-            assert exists(contextual_free_text), 'context must be supplied as array of strings as contextual_free_text if contextual_embed is not supplied'
-
-            contextual_embed = get_text_repr(
-                contextual_free_text,
-                return_cls_token = (self.free_text_embed_method == 'cls'),
-                device = seq.device
-            )
-
-        # in the case that a single genetic sequence was given, but needs to interact with multiple contexts
-
-        num_seq = seq_embed.shape[0]
-        num_contexts = aa_embed.shape[0]
-
-        if num_seq == 1:
-            seq_embed = repeat(seq_embed, '1 n d -> b n d', b = num_contexts)
-
-        # film condition both genetic and protein sequences
-
-        seq_embed = self.cond_genetic(seq_embed, contextual_embed)
-        aa_embed = self.cond_protein(aa_embed, contextual_embed, mask = aa_mask)
-
-        # cross attention
-
-        seq_embed = self.cross_attn(
-            seq_embed,
-            context = aa_embed,
-            context_mask = aa_mask
-        ) + seq_embed
-
-        # condition one more time
-
-        seq_embed = self.cond_genetic2(seq_embed, contextual_embed)
-
-        # feedforward
-
-        logits = self.feedforward(seq_embed) + seq_embed
+        logits = self.linear_with_hypergrid(interactions, context = contextual_embed)
 
         # to *-seq prediction
 
