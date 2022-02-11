@@ -66,7 +66,11 @@ class Trainer(nn.Module):
         include_scoped_negs = False,
         scoped_negs_remap_bed_path = None,
         scoped_negs_path = None,
-        scoped_negs_exts = '.bed.bool.npy'
+        scoped_negs_exts = '.bed.bool.npy',
+        include_biotypes_metadata_in_context = False,
+        biotypes_metadata_path = None,
+        include_biotypes_metadata_columns = ['germ_layer', 'cellline_cat'],
+        biotypes_metadata_delimiter = ' | '
     ):
         super().__init__()
         self.model = model
@@ -91,7 +95,11 @@ class Trainer(nn.Module):
             remap_df_frac = train_sample_frac,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
-            experiments_json_path = experiments_json_path
+            experiments_json_path = experiments_json_path,
+            include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
+            biotypes_metadata_path = biotypes_metadata_path,
+            include_biotypes_metadata_columns = include_biotypes_metadata_columns,
+            biotypes_metadata_delimiter = biotypes_metadata_delimiter
         )
 
         self.neg_ds = NegativePeakDataset(
@@ -103,7 +111,11 @@ class Trainer(nn.Module):
             exclude_targets = held_out_targets,
             exclude_cell_types = held_out_cell_types,
             context_length = context_length,
-            experiments_json_path = experiments_json_path
+            experiments_json_path = experiments_json_path,
+            include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
+            biotypes_metadata_path = biotypes_metadata_path,
+            include_biotypes_metadata_columns = include_biotypes_metadata_columns,
+            biotypes_metadata_delimiter = biotypes_metadata_delimiter
         )
 
         self.valid_ds = RemapAllPeakDataset(
@@ -117,7 +129,11 @@ class Trainer(nn.Module):
             remap_df_frac = valid_sample_frac,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
-            experiments_json_path = experiments_json_path
+            experiments_json_path = experiments_json_path,
+            include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
+            biotypes_metadata_path = biotypes_metadata_path,
+            include_biotypes_metadata_columns = include_biotypes_metadata_columns,
+            biotypes_metadata_delimiter = biotypes_metadata_delimiter
         )
 
         self.valid_neg_ds = NegativePeakDataset(
@@ -129,7 +145,11 @@ class Trainer(nn.Module):
             include_targets = held_out_targets,
             include_cell_types = held_out_cell_types,
             context_length = context_length,
-            experiments_json_path = experiments_json_path
+            experiments_json_path = experiments_json_path,
+            include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
+            biotypes_metadata_path = biotypes_metadata_path,
+            include_biotypes_metadata_columns = include_biotypes_metadata_columns,
+            biotypes_metadata_delimiter = biotypes_metadata_delimiter
         )
 
         self.include_scoped_negs = include_scoped_negs
@@ -146,7 +166,11 @@ class Trainer(nn.Module):
                 exts = scoped_negs_exts,
                 exclude_targets = held_out_targets,
                 exclude_cell_types = held_out_cell_types,
-                filter_chromosome_ids = train_chromosome_ids
+                filter_chromosome_ids = train_chromosome_ids,
+                include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
+                biotypes_metadata_path = biotypes_metadata_path,
+                include_biotypes_metadata_columns = include_biotypes_metadata_columns,
+                biotypes_metadata_delimiter = biotypes_metadata_delimiter
             )
 
             self.scoped_neg_dl = get_dataloader(self.scoped_neg_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
