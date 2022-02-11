@@ -1,11 +1,12 @@
 import torch
 import os
 import re
+from pathlib import Path
 from functools import partial
 import esm
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AlbertTokenizer, AutoModelForMaskedLM, logging
-from tf_bind_transformer.cache_utils import cache_fn, run_once
+from tf_bind_transformer.cache_utils import cache_fn, run_once, md5_hash_fn
 
 def exists(val):
     return val is not None
@@ -15,6 +16,9 @@ def map_values(fn, dictionary):
 
 def to_device(t, *, device):
     return t.to(device)
+
+def cast_tuple(t):
+    return (t,) if not isinstance(t, tuple) else t
 
 PROTEIN_EMBED_USE_CPU = os.getenv('PROTEIN_EMBED_USE_CPU', None) is not None
 
@@ -34,7 +38,7 @@ def calc_protein_representations_with_subunits(proteins, get_repr_fn, *, device)
     representations = []
 
     for subunits in proteins:
-        subunits = (subunits,) if not isinstance(subunits, tuple) else subunits
+        subunits = cast_tuple(subunits)
         subunits_representations = list(map(get_repr_fn, subunits))
         subunits_representations = list(map(partial(to_device, device = device), subunits_representations))
         subunits_representations = torch.cat(subunits_representations, dim = 0)
@@ -192,13 +196,39 @@ def get_prot_albert_repr(
 AF2_MAX_LENGTH = 2500
 AF2_EMBEDDING_DIM = 384
 
+AF2_DIRECTORY = os.getenv('TF_BIND_AF2_DIRECTORY', os.path.expanduser('~/.cache.tf.bind.transformer/.af2_embeddings'))
+AF2_DIRECTORY_PATH = Path(AF2_DIRECTORY)
+
+def get_single_alphafold2_repr(
+    protein_str,
+    max_length = AF2_MAX_LENGTH,
+):
+    md5 = md5_hash_fn(protein_str)
+    embedding_path = AF2_DIRECTORY_PATH / f'{md5}.pt'
+    assert embedding_path.exists(), f'af2 embedding not found for {protein_str}'
+
+    tensor = torch.load(str(embedding_path))
+    return tensor[:max_length]
+
 def get_alphafold2_repr(
     proteins,
     device,
     max_length = AF2_MAX_LENGTH,
     **kwargs
 ):
-    raise NotImplementedError
+    representations = []
+
+    for subunits in proteins:
+        subunits = cast_tuple(subunits)
+        subunits = list(map(lambda t: get_single_alphafold2_repr(t, max_length = max_length), subunits))
+        subunits = torch.cat(subunits, dim = 0)
+        representations.append(subunits)
+
+    lengths = [seq_repr.shape[0] for seq_repr in representations]
+    masks = torch.arange(max(lengths), device = device)[None, :] <  torch.tensor(lengths, device = device)[:, None]
+    padded_representations = pad_sequence(representations, batch_first = True)
+
+    return padded_representations.to(device), masks.to(device)
 
 # factory functions
 
