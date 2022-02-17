@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 from tf_bind_transformer.data import FactorProteinDataset, ContextDataset, cast_list, filter_df_by_tfactor_fastas
-from tf_bind_transformer.data import pl_isin, pl_notin, fetch_experiments_index, parse_exp_target_cell, read_bed
+from tf_bind_transformer.data import pl_isin, pl_notin, fetch_experiments_index, parse_exp_target_cell, read_bed, cycle
 from tf_bind_transformer.data import CHR_IDS, CHR_NAMES, get_chr_names
 from enformer_pytorch import FastaInterval
 
