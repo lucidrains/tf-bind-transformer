@@ -1,2 +1,3 @@
 from tf_bind_transformer.tf_bind_transformer import AdapterModel
 from tf_bind_transformer.training_utils import Trainer
+from tf_bind_transformer.training_utils_bigwig import BigWigTrainer
