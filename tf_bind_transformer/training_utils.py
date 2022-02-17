@@ -48,6 +48,8 @@ class Trainer(nn.Module):
         train_chromosome_ids,
         valid_chromosome_ids,
         batch_size,
+        lr = 3e-4,
+        wd = 0.1,
         validate_every = 250,
         grad_clip_norm = None,
         grad_accum_every = 1,
@@ -183,7 +185,7 @@ class Trainer(nn.Module):
         if self.aux_read_value_loss:
             print(f'training with read value aux loss')
 
-        self.optim = get_optimizer(model.parameters())
+        self.optim = get_optimizer(model.parameters(), lr = lr, wd = wd)
 
         self.grad_accum_every = grad_accum_every
         self.grad_clip_norm = grad_clip_norm

@@ -290,7 +290,11 @@ class AdapterModel(nn.Module):
         assert free_text_embed_method in {'cls', 'mean_pool'}, 'must be either cls or mean_pool'
         self.free_text_embed_method = free_text_embed_method
         self.use_free_text_context = use_free_text_context
-        contextual_embed_dim = default(contextual_embed_dim, get_contextual_dim(free_text_context_encoder))
+
+        if use_free_text_context:
+            contextual_embed_dim = get_contextual_dim(free_text_context_encoder)
+        else:
+            assert exists(contextual_embed_dim), 'contextual embedding dimension must be given if not using transformer encoder'
 
         # protein embedding related variables
 

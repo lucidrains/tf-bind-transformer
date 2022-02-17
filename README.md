@@ -10,10 +10,10 @@ Run the following at the project root to download dependencies
 $ python setup.py install --user
 ```
 
-Then you must install `pybedtools`
+Then you must install `pybedtools`  as well as 'pyBigWig'
 
 ```bash
-$ conda install --channel conda-forge --channel bioconda pybedtools
+$ conda install --channel conda-forge --channel bioconda pybedtools pyBigWig
 ```
 
 ## Usage
@@ -222,6 +222,68 @@ loss = model(
     target = binary_target,
     aa = tf_aa,
     contextual_free_text = contextual_texts,
+)
+
+loss.backward()
+```
+
+## Predicting Tracks from BigWig
+
+```python
+from pathlib import Path
+import torch
+from enformer_pytorch import Enformer
+
+from tf_bind_transformer import AdapterModel
+from tf_bind_transformer.data_bigwig import BigWigDataset, get_bigwig_dataloader
+
+# constants
+
+ROOT = Path('.')
+TFACTOR_TF = str(ROOT / 'tfactor.fastas')
+ENFORMER_DATA = str(ROOT / 'chip_atlas' / 'sequences.bed')
+FASTA_FILE_PATH = str(ROOT / 'hg38.ml.fa')
+BIGWIG_PATH = str(ROOT / 'chip_atlas')
+ANNOT_FILE_PATH = str(ROOT / 'chip_atlas' / 'annot.tab')
+
+# bigwig dataset and dataloader
+
+ds = BigWigDataset(
+    factor_fasta_folder = TFACTOR_TF,
+    bigwig_folder = BIGWIG_PATH,
+    enformer_loci_path = ENFORMER_DATA,
+    annot_file = ANNOT_FILE_PATH,
+    fasta_file = FASTA_FILE_PATH
+)
+
+dl = get_bigwig_dataloader(ds, batch_size = 2)
+
+# enformer
+
+enformer = Enformer(
+    dim = 384,
+    depth = 1,
+    target_length = 896
+)
+
+model = AdapterModel(
+    enformer = enformer,
+    use_aa_embeds = True,
+    use_free_text_context = True
+).cuda()
+
+# mock data
+
+seq, tf_aa, context_str, target = next(dl)
+seq, target = seq.cuda(), target.cuda()
+
+# train
+
+loss = model(
+    seq,
+    aa = tf_aa,
+    contextual_free_text = context_str,
+    target = target
 )
 
 loss.backward()
