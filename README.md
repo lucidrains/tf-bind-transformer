@@ -526,12 +526,12 @@ $ CLEAR_CACHE=1 python train.py
 - [x] use ProtTrans for longer context proteins, look into AF2
 - [x] make protalbert usable with one flag
 - [x] log auxiliary losses appropriately (read value)
+- [x] write fine-tuning script for finetuning on merged genomic track(s) from remap
 - [ ] support for custom transformers other than enformer
 - [ ] warmup in training loop
 - [ ] mixed precision
 - [ ] use wandb for experiment tracking
 - [ ] cleanup tech debt in data and protein_utils
-- [ ] write fine-tuning script for finetuning on merged genomic track(s) from remap
 - [ ] explore protein model fine-tuning of layernorm
 - [ ] auto-auroc calc
 - [ ] k-fold cross validation
