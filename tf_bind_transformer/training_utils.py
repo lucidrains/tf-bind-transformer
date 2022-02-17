@@ -229,9 +229,6 @@ class Trainer(nn.Module):
         if (curr_step % self.validate_every) == 0:
             self.model.eval()
 
-            total_valid_loss = 0
-            total_valid_accuracies = 0
-
             for _ in range(self.grad_accum_every):
                 seq, tf_aa, contextual_texts, peaks_nr, read_value, binary_target = collate_dl_outputs(next(self.valid_dl), next(self.valid_neg_dl))
                 seq, binary_target = seq.cuda(), binary_target.cuda()
@@ -244,9 +241,6 @@ class Trainer(nn.Module):
 
                 valid_loss = self.model.loss_fn(valid_logits, binary_target.float())
                 valid_accuracy = ((valid_logits.sigmoid() > 0.5).int() == binary_target).sum() / (binary_target.numel())
-
-                total_valid_loss += valid_loss.item()
-                total_valid_accuracies += valid_accuracy.item()
 
                 log = accum_log(log, {
                     'valid_loss': valid_loss.item() / grad_accum_every,
