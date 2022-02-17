@@ -440,8 +440,6 @@ while True:
     _ = trainer()
 ```
 
-- [ ] allow for separate train / valid sequences bed file for finetuning tracks
-
 ## Resources
 
 If you are low on GPU memory, you can save by making sure the protein and contextual embeddings are executed on CPU

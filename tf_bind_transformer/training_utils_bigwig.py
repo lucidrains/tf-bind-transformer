@@ -8,6 +8,9 @@ from enformer_pytorch.enformer_pytorch import poisson_loss, pearson_corr_coef
 def exists(val):
     return val is not None
 
+def default(val, d):
+    return val if exists(val) else d
+
 # helpers for logging and accumulating values across gradient steps
 
 def accum_log(log, new_logs):
@@ -31,6 +34,9 @@ class BigWigTrainer(nn.Module):
         train_chromosome_ids,
         valid_chromosome_ids,
         batch_size,
+        valid_bigwig_folder_path = None,
+        valid_loci_path = None,
+        valid_annot_file_path = None,
         downsample_factor = 128,
         target_length = 896,
         lr = 3e-4,
@@ -73,9 +79,9 @@ class BigWigTrainer(nn.Module):
         self.valid_ds = BigWigDataset(
             filter_chromosome_ids = valid_chromosome_ids,
             factor_fasta_folder = factor_fasta_folder,
-            bigwig_folder = bigwig_folder_path,
-            enformer_loci_path = loci_path,
-            annot_file = annot_file_path,
+            bigwig_folder = default(valid_bigwig_folder_path, bigwig_folder_path),
+            enformer_loci_path = default(valid_loci_path, loci_path),
+            annot_file = default(valid_annot_file_path, annot_file_path),
             fasta_file = fasta_file,
             include_targets = held_out_targets,
             include_cell_types = held_out_cell_types,
