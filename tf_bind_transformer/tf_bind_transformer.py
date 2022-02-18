@@ -158,7 +158,7 @@ class ReadValueMLP(nn.Module):
         pred = self.mlp(logits_with_peaks)
         read_value = rearrange(read_value, '... -> (...)')
 
-        return F.mse_loss(pred, read_value)
+        return F.smooth_l1_loss(pred, read_value)
 
 class HypergridLinear(nn.Module):
     def __init__(
@@ -270,7 +270,7 @@ class AdapterModel(nn.Module):
         binary_target = False,
         target_mse_loss = False,
         aux_read_value_loss = False,
-        read_value_aux_loss_weight = 0.1,
+        read_value_aux_loss_weight = 0.05,
         joint_cross_attn_depth = 1,
         fourier_dims = 256,
         condition_squeeze_excite = False,
