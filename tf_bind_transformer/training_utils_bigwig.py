@@ -76,7 +76,8 @@ class BigWigTrainer(nn.Module):
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
-            bigwig_reduction_type = bigwig_reduction_type
+            bigwig_reduction_type = bigwig_reduction_type,
+            filter_sequences_by = ('column_4', 'train')
         )
 
         self.valid_ds = BigWigDataset(
@@ -95,7 +96,8 @@ class BigWigTrainer(nn.Module):
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
-            bigwig_reduction_type = bigwig_reduction_type
+            bigwig_reduction_type = bigwig_reduction_type,
+            filter_sequences_by = ('column_4', 'valid')
         )
 
         self.train_dl = get_bigwig_dataloader(self.ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)

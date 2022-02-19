@@ -58,6 +58,7 @@ class BigWigDataset(Dataset):
         experiments_json_path = None,
         include_biotypes_metadata_in_context = False,
         biotypes_metadata_path = None,
+        filter_sequences_by = None,
         include_biotypes_metadata_columns = [],
         biotypes_metadata_delimiter = ' | ',
         only_ref = ['mm10', 'hg38'],
@@ -92,7 +93,14 @@ class BigWigDataset(Dataset):
         if exists(filter_chromosome_ids):
             dataset_chr_ids = dataset_chr_ids.intersection(set(filter_chromosome_ids))
 
+        # filtering loci by chromosomes
+        # as well as training or validation
+
         loci = loci.filter(pl_isin('column_1', get_chr_names(dataset_chr_ids)))
+
+        if exists(filter_sequences_by):
+            col_name, col_val = filter_sequences_by
+            loci = loci.filter(pl.col(col_name) == col_val)
 
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)
         self.mouse_factor_ds = self.factor_ds if not exists(mouse_factor_fasta_folder) else FactorProteinDataset(mouse_factor_fasta_folder)
