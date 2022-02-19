@@ -55,7 +55,8 @@ class BigWigTrainer(nn.Module):
         include_biotypes_metadata_in_context = False,
         biotypes_metadata_path = None,
         include_biotypes_metadata_columns = ['germ_layer', 'cellline_cat'],
-        biotypes_metadata_delimiter = ' | '
+        biotypes_metadata_delimiter = ' | ',
+        bigwig_reduction_type = 'sum'
     ):
         super().__init__()
         self.model = model
@@ -75,6 +76,7 @@ class BigWigTrainer(nn.Module):
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
+            bigwig_reduction_type = bigwig_reduction_type
         )
 
         self.valid_ds = BigWigDataset(
@@ -93,6 +95,7 @@ class BigWigTrainer(nn.Module):
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
+            bigwig_reduction_type = bigwig_reduction_type
         )
 
         self.train_dl = get_bigwig_dataloader(self.ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)

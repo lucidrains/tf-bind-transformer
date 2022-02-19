@@ -63,6 +63,7 @@ class BigWigDataset(Dataset):
         only_ref = ['mm10', 'hg38'],
         downsample_factor = 128,
         target_length = 896,
+        bigwig_reduction_type = 'sum',
         **kwargs
     ):
         super().__init__()
@@ -141,6 +142,8 @@ class BigWigDataset(Dataset):
         self.downsample_factor = downsample_factor
         self.target_length = target_length
 
+        self.bigwig_reduction_type = bigwig_reduction_type
+
     def __len__(self):
         return len(self.df) * self.ntargets
 
@@ -182,7 +185,13 @@ class BigWigDataset(Dataset):
         output = np.array(exp_bw.values(chr_name, begin, end))
 
         output = output.reshape((-1, self.downsample_factor))
-        om = np.nanmean(output, axis = 1)
+
+        if self.bigwig_reduction_type == 'mean':
+            om = np.nanmean(output, axis = 1)
+        elif self.bigwig_reduction_type == 'sum':
+            om = np.nansum(output, axis = 1)
+        else:
+            raise ValueError(f'unknown reduction type {self.bigwig_reduction_type}')
 
         output_length = output.shape[0]
 
