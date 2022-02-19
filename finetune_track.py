@@ -10,6 +10,7 @@ from tf_bind_transformer import AdapterModel, BigWigTrainer
 
 BATCH_SIZE = 1
 GRAD_ACCUM_STEPS = 8
+LEARNING_RATE = 1e-4   # Deepmind used 1e-4 for fine-tuning of Enformer
 
 # effective batch size of BATCH_SIZE * GRAD_ACCUM_STEPS = 16
 
@@ -58,6 +59,7 @@ trainer = BigWigTrainer(
     bigwig_folder_path = BIGWIG_PATH,
     annot_file_path = ANNOT_FILE_PATH,
     target_length = TARGET_LENGTH,
+    lr = LEARNING_RATE,
     batch_size = BATCH_SIZE,
     validate_every = VALIDATE_EVERY,
     grad_clip_norm = GRAD_CLIP_MAX_NORM,
