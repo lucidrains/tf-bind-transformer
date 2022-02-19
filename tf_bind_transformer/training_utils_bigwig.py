@@ -25,18 +25,17 @@ class BigWigTrainer(nn.Module):
         self,
         model,
         *,
-        factor_fasta_folder,
+        human_factor_fasta_folder,
         bigwig_folder_path,
-        loci_path,
         annot_file_path,
+        human_loci_path,
+        mouse_loci_path,
         human_fasta_file,
         mouse_fasta_file,
         train_chromosome_ids,
         valid_chromosome_ids,
         batch_size,
-        valid_bigwig_folder_path = None,
-        valid_loci_path = None,
-        valid_annot_file_path = None,
+        mouse_factor_fasta_folder = None,
         downsample_factor = 128,
         target_length = 896,
         lr = 3e-4,
@@ -50,7 +49,6 @@ class BigWigTrainer(nn.Module):
         shuffle = False,
         shift_aug_range = (-2, 2),
         rc_aug = False,
-        only_ref = ['mm10', 'hg38'],
         checkpoint_filename = './checkpoint.pt',
         include_biotypes_metadata_in_context = False,
         biotypes_metadata_path = None,
@@ -61,47 +59,101 @@ class BigWigTrainer(nn.Module):
         super().__init__()
         self.model = model
 
-        self.ds = BigWigDataset(
+        mouse_factor_fasta_folder = default(mouse_factor_fasta_folder, human_factor_fasta_folder)
+
+        self.human_ds = BigWigDataset(
             filter_chromosome_ids = train_chromosome_ids,
-            factor_fasta_folder = factor_fasta_folder,
+            factor_fasta_folder = human_factor_fasta_folder,
             bigwig_folder = bigwig_folder_path,
-            enformer_loci_path = loci_path,
+            enformer_loci_path = human_loci_path,
             annot_file = annot_file_path,
-            human_fasta_file = human_fasta_file,
-            mouse_fasta_file = mouse_fasta_file,
+            fasta_file = human_fasta_file,
             exclude_targets = held_out_targets,
             exclude_cell_types = held_out_cell_types,
-            only_ref = only_ref,
             target_length = target_length,
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
             bigwig_reduction_type = bigwig_reduction_type,
-            filter_sequences_by = ('column_4', 'train')
+            filter_sequences_by = ('column_4', 'train'),
+            only_ref = ['hg38']
         )
 
-        self.valid_ds = BigWigDataset(
+        self.valid_human_ds = BigWigDataset(
             filter_chromosome_ids = valid_chromosome_ids,
-            factor_fasta_folder = factor_fasta_folder,
-            bigwig_folder = default(valid_bigwig_folder_path, bigwig_folder_path),
-            enformer_loci_path = default(valid_loci_path, loci_path),
-            annot_file = default(valid_annot_file_path, annot_file_path),
-            human_fasta_file = human_fasta_file,
-            mouse_fasta_file = mouse_fasta_file,
-            fasta_file = fasta_file,
+            factor_fasta_folder = human_factor_fasta_folder,
+            bigwig_folder = bigwig_folder_path,
+            enformer_loci_path = human_loci_path,
+            annot_file = annot_file_path,
+            fasta_file = human_fasta_file,
             include_targets = held_out_targets,
             include_cell_types = held_out_cell_types,
-            only_ref = only_ref,
             target_length = target_length,
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
             bigwig_reduction_type = bigwig_reduction_type,
-            filter_sequences_by = ('column_4', 'valid')
+            filter_sequences_by = ('column_4', 'valid'),
+            only_ref = ['hg38']
         )
 
-        self.train_dl = get_bigwig_dataloader(self.ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
-        self.valid_dl = get_bigwig_dataloader(self.valid_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
+        self.mouse_ds = BigWigDataset(
+            filter_chromosome_ids = train_chromosome_ids,
+            factor_fasta_folder = mouse_factor_fasta_folder,
+            bigwig_folder = bigwig_folder_path,
+            enformer_loci_path = mouse_loci_path,
+            annot_file = annot_file_path,
+            fasta_file = mouse_fasta_file,
+            exclude_targets = held_out_targets,
+            exclude_cell_types = held_out_cell_types,
+            target_length = target_length,
+            downsample_factor = downsample_factor,
+            shift_augs = shift_aug_range,
+            rc_aug = rc_aug,
+            bigwig_reduction_type = bigwig_reduction_type,
+            filter_sequences_by = ('column_4', 'train'),
+            only_ref = ['mm10']
+        )
+
+        self.valid_mouse_ds = BigWigDataset(
+            filter_chromosome_ids = valid_chromosome_ids,
+            factor_fasta_folder = mouse_factor_fasta_folder,
+            bigwig_folder = bigwig_folder_path,
+            enformer_loci_path = mouse_loci_path,
+            annot_file = annot_file_path,
+            fasta_file = mouse_fasta_file,
+            include_targets = held_out_targets,
+            include_cell_types = held_out_cell_types,
+            target_length = target_length,
+            downsample_factor = downsample_factor,
+            shift_augs = shift_aug_range,
+            rc_aug = rc_aug,
+            bigwig_reduction_type = bigwig_reduction_type,
+            filter_sequences_by = ('column_4', 'valid'),
+            only_ref = ['mm10']
+        )
+
+        len_train_human = len(self.human_ds)
+        len_train_mouse = len(self.mouse_ds)
+        len_valid_human = len(self.valid_human_ds)
+        len_valid_mouse = len(self.valid_mouse_ds)
+
+        self.has_human = len_train_human > 0 and len_valid_human > 0
+        self.has_mouse = len_train_mouse > 0 and len_valid_mouse > 0
+
+        if self.has_human:
+            print(f'training human with {self.human_ds.ntargets} target')
+
+        if self.has_mouse:
+            print(f'training mouse with {self.mouse_ds.ntargets} target')
+
+        assert self.has_human or self.has_mouse, 'must have training samples for either human or mouse'
+
+        self.train_human_dl = get_bigwig_dataloader(self.human_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
+        self.train_mouse_dl = get_bigwig_dataloader(self.mouse_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
+
+        self.valid_human_dl = get_bigwig_dataloader(self.valid_human_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
+        self.valid_mouse_dl = get_bigwig_dataloader(self.valid_mouse_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
 
         self.optim = get_optimizer(model.parameters(), lr = lr, wd = wd)
 
@@ -123,54 +175,104 @@ class BigWigTrainer(nn.Module):
         self.model.train()
 
         log = {}
+        loss_divisor = 2 if self.has_human and self.has_mouse else 1
 
-        for _ in range(self.grad_accum_every):
-            seq, tf_aa, contextual_texts, target = next(self.train_dl)
-            seq, target = seq.cuda(), target.cuda()
+        if self.has_human:
+            for _ in range(self.grad_accum_every):
+                seq, tf_aa, contextual_texts, target = next(self.train_human_dl)
+                seq, target = seq.cuda(), target.cuda()
 
-            loss = self.model(
-                seq,
-                aa = tf_aa,
-                contextual_free_text = contextual_texts,
-                target = target,
-                finetune_enformer_ln_only = finetune_enformer_ln_only,
-                **kwargs
-            )
+                loss = self.model(
+                    seq,
+                    aa = tf_aa,
+                    contextual_free_text = contextual_texts,
+                    target = target,
+                    finetune_enformer_ln_only = finetune_enformer_ln_only,
+                    **kwargs
+                )
 
-            log = accum_log(log, {'loss': loss.item() / grad_accum_every})
-            (loss / self.grad_accum_every).backward()
+                log = accum_log(log, {'human_loss': loss.item() / grad_accum_every})
+                (loss / self.grad_accum_every / loss_divisor).backward()
 
-        print(f'{curr_step} loss: {log["loss"]}')
+            print(f'{curr_step} human loss: {log["human_loss"]}')
+
+        if self.has_mouse:
+            for _ in range(self.grad_accum_every):
+                seq, tf_aa, contextual_texts, target = next(self.train_mouse_dl)
+                seq, target = seq.cuda(), target.cuda()
+
+                loss = self.model(
+                    seq,
+                    aa = tf_aa,
+                    contextual_free_text = contextual_texts,
+                    target = target,
+                    finetune_enformer_ln_only = finetune_enformer_ln_only,
+                    **kwargs
+                )
+
+                log = accum_log(log, {'mouse_loss': loss.item() / grad_accum_every})
+                (loss / self.grad_accum_every / loss_divisor).backward()
+
+            print(f'{curr_step} mouse loss: {log["mouse_loss"]}')
+
+        # gradient clipping
 
         if exists(self.grad_clip_norm):
             nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
 
+        # take a gradient step
+
         self.optim.step()
         self.optim.zero_grad()
+
+        # validation
 
         if (curr_step % self.validate_every) == 0:
             self.model.eval()
 
-            for _ in range(self.grad_accum_every):
-                seq, tf_aa, contextual_texts, target = next(self.valid_dl)
-                seq, target = seq.cuda(), target.cuda()
+            if self.has_human:
+                for _ in range(self.grad_accum_every):
+                    seq, tf_aa, contextual_texts, target = next(self.valid_human_dl)
+                    seq, target = seq.cuda(), target.cuda()
 
-                pred = self.model(
-                    seq,
-                    aa = tf_aa,
-                    contextual_free_text = contextual_texts,
-                )
+                    pred = self.model(
+                        seq,
+                        aa = tf_aa,
+                        contextual_free_text = contextual_texts,
+                    )
 
-                valid_poisson_loss = poisson_loss(pred, target)
-                valid_corr_coef = pearson_corr_coef(pred, target)
+                    valid_poisson_loss = poisson_loss(pred, target)
+                    valid_corr_coef = pearson_corr_coef(pred, target)
 
-                log = accum_log(log, {
-                    'valid_loss': valid_poisson_loss.item() / grad_accum_every,
-                    'valid_corr_coef': valid_corr_coef.item() / grad_accum_every
-                })
+                    log = accum_log(log, {
+                        'human_valid_loss': valid_poisson_loss.item() / grad_accum_every,
+                        'human_valid_corr_coef': valid_corr_coef.item() / grad_accum_every
+                    })
 
-            print(f'{curr_step} valid loss: {log["valid_loss"]}')
-            print(f'{curr_step} valid accuracy: {log["valid_corr_coef"]}')
+                print(f'{curr_step} human valid loss: {log["human_valid_loss"]}')
+                print(f'{curr_step} human valid pearson R: {log["human_valid_corr_coef"]}')
+
+            if self.has_mouse:
+                for _ in range(self.grad_accum_every):
+                    seq, tf_aa, contextual_texts, target = next(self.valid_mouse_dl)
+                    seq, target = seq.cuda(), target.cuda()
+
+                    pred = self.model(
+                        seq,
+                        aa = tf_aa,
+                        contextual_free_text = contextual_texts,
+                    )
+
+                    valid_poisson_loss = poisson_loss(pred, target)
+                    valid_corr_coef = pearson_corr_coef(pred, target)
+
+                    log = accum_log(log, {
+                        'mouse_valid_loss': valid_poisson_loss.item() / grad_accum_every,
+                        'mouse_valid_corr_coef': valid_corr_coef.item() / grad_accum_every
+                    })
+
+                print(f'{curr_step} mouse valid loss: {log["mouse_valid_loss"]}')
+                print(f'{curr_step} mouse valid pearson R: {log["mouse_valid_corr_coef"]}')
 
             if curr_step > 0:
                 torch.save(self.model.state_dict(), self.checkpoint_filename)

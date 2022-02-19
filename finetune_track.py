@@ -20,9 +20,11 @@ TFACTOR_FOLDER = './tfactor.fastas'
 HUMAN_FASTA_FILE_PATH = './hg38.ml.fa'
 MOUSE_FASTA_FILE_PATH = './mm10.ml.fa'
 
-LOCI_PATH = './sequences.bed'
-BIGWIG_PATH = './bigwig_folder'
-ANNOT_FILE_PATH =  './experiments.tab'
+HUMAN_LOCI_PATH = './chip_atlas/human_sequences.bed'
+MOUSE_LOCI_PATH = './chip_atlas/mouse_sequences.bed'
+BIGWIG_PATH = './chip_atlas/bigwig'
+ANNOT_FILE_PATH =  './chip_atlas/annot.tab'
+
 TARGET_LENGTH = 896
 
 TRAIN_CHROMOSOMES = [*range(1, 24, 2), 'X'] # train on odd chromosomes
@@ -49,7 +51,10 @@ model = AdapterModel(
 
 trainer = BigWigTrainer(
     model,
-    loci_path = LOCI_PATH,
+    human_loci_path = HUMAN_LOCI_PATH,
+    mouse_loci_path = MOUSE_LOCI_PATH,
+    human_fasta_file = HUMAN_FASTA_FILE_PATH,
+    mouse_fasta_file = MOUSE_FASTA_FILE_PATH,
     bigwig_folder_path = BIGWIG_PATH,
     annot_file_path = ANNOT_FILE_PATH,
     target_length = TARGET_LENGTH,
@@ -57,9 +62,8 @@ trainer = BigWigTrainer(
     validate_every = VALIDATE_EVERY,
     grad_clip_norm = GRAD_CLIP_MAX_NORM,
     grad_accum_every = GRAD_ACCUM_STEPS,
-    factor_fasta_folder = TFACTOR_FOLDER,
-    human_fasta_file = HUMAN_FASTA_FILE_PATH,
-    mouse_fasta_file = MOUSE_FASTA_FILE_PATH,
+    human_factor_fasta_folder = TFACTOR_FOLDER,
+    mouse_factor_fasta_folder = TFACTOR_FOLDER,
     train_chromosome_ids = TRAIN_CHROMOSOMES,
     valid_chromosome_ids = VALID_CHROMOSOMES,
     held_out_targets = HELD_OUT_TARGET

@@ -45,9 +45,7 @@ class BigWigDataset(Dataset):
         factor_fasta_folder,
         bigwig_folder,
         enformer_loci_path,
-        human_fasta_file,
-        mouse_fasta_file,
-        mouse_factor_fasta_folder = None,
+        fasta_file,
         annot_file = None,
         filter_chromosome_ids = None,
         exclude_targets = None,
@@ -77,14 +75,13 @@ class BigWigDataset(Dataset):
         assert len(bw_experiments) > 0, 'no bigwig files found in bigwig folder'
 
         loci = read_bed(enformer_loci_path)
-
         annot_df = pl.read_csv(annot_file, sep = "\t", has_headers = False, columns = list(map(lambda i: f'column_{i + 1}', range(17))))
 
         annot_df = annot_df.filter(pl_isin('column_2', only_ref))
 
         # :TODO find out why this step is taking forever
         annot_df = annot_df.filter(pl_isin('column_1', bw_experiments))
-        
+
         if df_frac < 1:
             annot_df = annot_df.sample(frac = df_frac)
 
@@ -103,7 +100,6 @@ class BigWigDataset(Dataset):
             loci = loci.filter(pl.col(col_name) == col_val)
 
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)
-        self.mouse_factor_ds = self.factor_ds if not exists(mouse_factor_fasta_folder) else FactorProteinDataset(mouse_factor_fasta_folder)
 
         annot_df = chip_atlas_add_experiment_target_cell(annot_df)
         annot_df = filter_df_by_tfactor_fastas(annot_df, factor_fasta_folder)
@@ -134,10 +130,7 @@ class BigWigDataset(Dataset):
         if exclude_cell_types:
             annot_df = annot_df.filter(pl_notin('cell_type', exclude_cell_types))
 
-        assert len(annot_df) > 0, 'dataset is empty by filter criteria'
-
-        self.human_fasta = FastaInterval(fasta_file = human_fasta_file, **kwargs)
-        self.mouse_fasta = FastaInterval(fasta_file = mouse_fasta_file, **kwargs)
+        self.fasta = FastaInterval(fasta_file = fasta_file, **kwargs)
 
         self.df = loci
         self.annot = annot_df
@@ -157,12 +150,10 @@ class BigWigDataset(Dataset):
 
     def __getitem__(self, ind):
         # TODO return all targets from an individual enformer loci
-
         chr_name, begin, end, _ = self.df.row(ind % self.df.shape[0])
 
         targets = self.annot.select('target').to_series(0)
         cell_types = self.annot.select('cell_type').to_series(0)
-        refs = self.annot.select('column_2').to_series(0)
 
         ix_target = ind // self.df.shape[0]
     
@@ -170,28 +161,17 @@ class BigWigDataset(Dataset):
 
         target = targets[ix_target]
         context_str = cell_types[ix_target]
-        ref = refs[ix_target]
+        exp_bw = self.bigwigs[ix_target]
 
         # figure out ref and fetch appropriate sequence
 
-        if ref == 'hg38':
-            fasta = self.human_fasta
-            factor_ds = self.factor_ds
-        elif ref == 'mm10':
-            fasta = self.mouse_fasta
-            factor_ds = self.mouse_factor_ds
-        else:
-            raise ValueError(f'unknown ref {ref}')
-
-        aa_seq = factor_ds[target]
-        seq = fasta(chr_name, begin, end)
+        aa_seq = self.factor_ds[target]
+        seq = self.fasta(chr_name, begin, end)
 
         # calculate bigwig
         # properly downsample and then crop
 
-        exp_bw = self.bigwigs[ix_target]
         output = np.array(exp_bw.values(chr_name, begin, end))
-
         output = output.reshape((-1, self.downsample_factor))
 
         if self.bigwig_reduction_type == 'mean':
