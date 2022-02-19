@@ -6,6 +6,7 @@ from tf_bind_transformer.data import read_bed
 
 UNIPROT_URL = 'http://www.uniprot.org'
 REMAP_BED_PATH = './remap2022_crm_macs2_hg38_v1_0.bed'
+SPECIES = 'HUMAN' # | 'MOUSE'
 
 GENE_NAME_TO_ID_OVERRIDE = {
     'SS18-SSX': ['Q8IZH1'],
@@ -49,7 +50,7 @@ if __name__ == '__main__':
 
                 # only get the human ones (todo: make species agnostic)
 
-                entries = list(filter(lambda t: '_HUMAN' in t, uniprot_resp.split('\n')))
+                entries = list(filter(lambda t: f'_{SPECIES}' in t, uniprot_resp.split('\n')))
                 entries = list(map(lambda t: t.split('\t')[1], entries))
             else:
                 entries = GENE_NAME_TO_ID_OVERRIDE[gene_name]
