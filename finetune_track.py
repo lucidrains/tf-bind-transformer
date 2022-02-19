@@ -17,7 +17,8 @@ VALIDATE_EVERY = 250
 GRAD_CLIP_MAX_NORM = 1.5
 
 TFACTOR_FOLDER = './tfactor.fastas'
-FASTA_FILE_PATH = './hg38.ml.fa'
+HUMAN_FASTA_FILE_PATH = './hg38.ml.fa'
+MOUSE_FASTA_FILE_PATH = './mm10.ml.fa'
 
 LOCI_PATH = './sequences.bed'
 BIGWIG_PATH = './bigwig_folder'
@@ -57,7 +58,8 @@ trainer = BigWigTrainer(
     grad_clip_norm = GRAD_CLIP_MAX_NORM,
     grad_accum_every = GRAD_ACCUM_STEPS,
     factor_fasta_folder = TFACTOR_FOLDER,
-    fasta_file = FASTA_FILE_PATH,
+    human_fasta_file = HUMAN_FASTA_FILE_PATH,
+    mouse_fasta_file = MOUSE_FASTA_FILE_PATH,
     train_chromosome_ids = TRAIN_CHROMOSOMES,
     valid_chromosome_ids = VALID_CHROMOSOMES,
     held_out_targets = HELD_OUT_TARGET
