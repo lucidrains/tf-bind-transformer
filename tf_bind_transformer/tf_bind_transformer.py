@@ -12,7 +12,7 @@ from contextlib import contextmanager
 
 from enformer_pytorch import Enformer
 from enformer_pytorch.enformer_pytorch import poisson_loss, pearson_corr_coef
-from enformer_pytorch.finetune import freeze_batchnorms_, freeze_all_but_layernorms_
+from enformer_pytorch.finetune import freeze_batchnorms_, freeze_all_but_layernorms_, unfreeze_last_n_layers_
 
 from logavgexp_pytorch import logavgexp
 
@@ -20,7 +20,7 @@ from tf_bind_transformer.cache_utils import cache_fn
 from tf_bind_transformer.protein_utils import get_protein_embedder
 from tf_bind_transformer.context_utils import get_text_repr, get_contextual_dim
 
-from tf_bind_transformer.attention import FeedForward, JointCrossAttentionBlock, CrossAttention
+from tf_bind_transformer.attention import FeedForward, JointCrossAttentionBlock, CrossAttention, SelfAttentionBlock
 
 # helper functions
 
@@ -272,6 +272,7 @@ class AdapterModel(nn.Module):
         aux_read_value_loss = False,
         read_value_aux_loss_weight = 0.05,
         joint_cross_attn_depth = 1,
+        genome_self_attn_depth = 0,
         fourier_dims = 256,
         condition_squeeze_excite = False,
         condition_film = False,
@@ -317,6 +318,17 @@ class AdapterModel(nn.Module):
 
             self.cond_genetic  = condition_klass(contextual_embed_dim, enformer_dim)
             self.cond_protein  = condition_klass(contextual_embed_dim, aa_embed_dim)
+
+        # genome self attn
+
+        self.genome_self_attns = nn.ModuleList([])
+
+        for _ in range(genome_self_attn_depth):
+            attn = SelfAttentionBlock(
+                dim = enformer_dim,
+                dropout = dropout
+            )
+            self.genome_self_attns.append(attn)
 
         # joint attn
 
@@ -396,7 +408,8 @@ class AdapterModel(nn.Module):
         peaks_nr = None,
         return_corr_coef = False,
         finetune_enformer = False,
-        finetune_enformer_ln_only = False
+        finetune_enformer_ln_only = False,
+        unfreeze_enformer_last_n_layers = 0
     ):
         device = seq.device
 
@@ -418,12 +431,20 @@ class AdapterModel(nn.Module):
             enformer_forward_wrapper = cache_enformer_forward if self.training else identity
             enformer_forward = enformer_forward_wrapper(enformer_forward)
 
+        # if unfreezing last N layers of enformer
+
+        if unfreeze_enformer_last_n_layers > 0:
+            unfreeze_last_n_layers_(self.enformer, unfreeze_enformer_last_n_layers)
+
         # genetic sequence embedding
 
         with enformer_context:
             seq_embed = enformer_forward(seq, return_only_embeddings = True)
 
         seq_embed = self.norm_seq_embed(seq_embed)
+
+        for self_attn_block in self.genome_self_attns:
+            seq_embed = self_attn_block(seq_embed)
 
         # protein related embeddings
 

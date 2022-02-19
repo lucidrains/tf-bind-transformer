@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
   name = 'tf-bind-transformer',
   packages = find_packages(exclude=[]),
-  version = '0.0.71',
+  version = '0.0.72',
   license='MIT',
   description = 'Transformer for Transcription Factor Binding',
   author = 'Phil Wang',
@@ -21,7 +21,7 @@ setup(
     'biopython',
     'click',
     'einops>=0.3',
-    'enformer-pytorch>=0.3.5',
+    'enformer-pytorch>=0.3.6',
     'fair-esm',
     'logavgexp-pytorch',
     'polars',
