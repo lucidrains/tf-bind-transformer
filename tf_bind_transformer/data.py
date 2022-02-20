@@ -363,11 +363,12 @@ class RemapAllPeakDataset(Dataset):
 
         self.balance_sampling_by_target = balance_sampling_by_target
 
-        self.df_indexed_by_target = []
+        if self.balance_sampling_by_target:
+            self.df_indexed_by_target = []
 
-        for target in self.df.get_column('target').unique().to_list():
-            df_by_target = self.df.filter(pl.col('target') == target)
-            self.df_indexed_by_target.append(df_by_target)
+            for target in self.df.get_column('target').unique().to_list():
+                df_by_target = self.df.filter(pl.col('target') == target)
+                self.df_indexed_by_target.append(df_by_target)
 
         # context string creator
 
@@ -467,6 +468,7 @@ class ScopedNegativePeakDataset(Dataset):
         biotypes_metadata_path = None,
         include_biotypes_metadata_columns = [],
         biotypes_metadata_delimiter = ' | ',
+        balance_sampling_by_target = False,
         **kwargs
     ):
         super().__init__()
@@ -512,6 +514,17 @@ class ScopedNegativePeakDataset(Dataset):
         self.exp_target_cell_negatives = filtered_exp_target_cell_negatives
         assert len(self.exp_target_cell_negatives) > 0, 'no experiment-target-cell scoped negatives to select from after filtering'
 
+        # balanced target sampling
+
+        self.balance_sampling_by_target = balance_sampling_by_target
+
+        if balance_sampling_by_target:
+            self.exp_target_cell_by_target = defaultdict(list)
+
+            for exp_target_cell, filepath in self.exp_target_cell_negatives:
+                _, target, *_ = parse_exp_target_cell(exp_target_cell)
+                self.exp_target_cell_by_target[target].append((exp_target_cell, filepath))
+
         # tfactor dataset
 
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)
@@ -529,10 +542,19 @@ class ScopedNegativePeakDataset(Dataset):
         )
 
     def __len__(self):
-        return len(self.exp_target_cell_negatives)
+        if self.balance_sampling_by_target:
+            return len(self.exp_target_cell_by_target)
+        else:
+            return len(self.exp_target_cell_negatives)
 
     def __getitem__(self, idx):
-        exp_target_cell, bool_numpy_path = self.exp_target_cell_negatives[idx]
+        if self.balance_sampling_by_target:
+            negatives = list(self.exp_target_cell_by_target.values())[idx]
+            sample = choice(negatives)
+        else:
+            sample = self.exp_target_cell_negatives[idx]
+
+        exp_target_cell, bool_numpy_path = sample
         experiment, target, cell_type = parse_exp_target_cell(exp_target_cell)
 
         # load boolean numpy array
@@ -586,6 +608,7 @@ class NegativePeakDataset(Dataset):
         biotypes_metadata_path = None,
         include_biotypes_metadata_columns = [],
         biotypes_metadata_delimiter = ' | ',
+        balance_sampling_by_target = False,
         **kwargs
     ):
         super().__init__()
@@ -630,6 +653,19 @@ class NegativePeakDataset(Dataset):
 
         assert len(self.filtered_exp_target_cells), 'no experiment-target-cell left for hard negative set'
 
+        # balanced sampling of targets
+
+        self.balance_sampling_by_target = balance_sampling_by_target
+
+        if balance_sampling_by_target:
+            self.exp_target_cell_by_target = defaultdict(list)
+
+            for exp_target_cell in self.filtered_exp_target_cells:
+                _, target, *_ = parse_exp_target_cell(exp_target_cell)
+                self.exp_target_cell_by_target[target].append(exp_target_cell)
+
+        # factor ds
+
         self.factor_ds = FactorProteinDataset(factor_fasta_folder)
         self.fasta = FastaInterval(**kwargs)
 
@@ -650,7 +686,13 @@ class NegativePeakDataset(Dataset):
     def __getitem__(self, ind):
         chr_name, begin, end = self.neg_df.row(ind)
 
-        random_exp_target_cell_type = choice(self.filtered_exp_target_cells)
+        if self.balance_sampling_by_target:
+            rand_ind = randrange(0, len(self.exp_target_cell_by_target))
+            exp_target_cell_by_target_list = list(self.exp_target_cell_by_target.values())
+            random_exp_target_cell_type = choice(exp_target_cell_by_target_list[rand_ind])
+        else:
+            random_exp_target_cell_type = choice(self.filtered_exp_target_cells)
+
         experiment, target, cell_type = parse_exp_target_cell(random_exp_target_cell_type)
 
         seq = self.fasta(chr_name, begin, end)

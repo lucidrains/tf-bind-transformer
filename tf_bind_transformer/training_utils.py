@@ -101,7 +101,8 @@ class Trainer(nn.Module):
             include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
             biotypes_metadata_path = biotypes_metadata_path,
             include_biotypes_metadata_columns = include_biotypes_metadata_columns,
-            biotypes_metadata_delimiter = biotypes_metadata_delimiter
+            biotypes_metadata_delimiter = biotypes_metadata_delimiter,
+            balance_sampling_by_target = balance_sampling_by_target
         )
 
         self.valid_ds = RemapAllPeakDataset(
@@ -136,7 +137,8 @@ class Trainer(nn.Module):
             include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
             biotypes_metadata_path = biotypes_metadata_path,
             include_biotypes_metadata_columns = include_biotypes_metadata_columns,
-            biotypes_metadata_delimiter = biotypes_metadata_delimiter
+            biotypes_metadata_delimiter = biotypes_metadata_delimiter,
+            balance_sampling_by_target = balance_sampling_by_target
         )
 
         self.include_scoped_negs = include_scoped_negs
@@ -157,7 +159,8 @@ class Trainer(nn.Module):
                 include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
                 biotypes_metadata_path = biotypes_metadata_path,
                 include_biotypes_metadata_columns = include_biotypes_metadata_columns,
-                biotypes_metadata_delimiter = biotypes_metadata_delimiter
+                biotypes_metadata_delimiter = biotypes_metadata_delimiter,
+                balance_sampling_by_target = balance_sampling_by_target
             )
 
             self.scoped_neg_dl = get_dataloader(self.scoped_neg_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
