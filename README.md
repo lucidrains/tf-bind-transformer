@@ -348,6 +348,7 @@ model = AdapterModel(
 trainer = Trainer(
     model,
     batch_size = 2,                                   # batch size
+    context_length = 4096,                            # genetic sequence length
     grad_accum_every = 8,                             # gradient accumulation steps
     grad_clip_norm = 2.0,                             # gradient clipping
     validate_every = 250,

@@ -38,7 +38,6 @@ class BigWigTrainer(nn.Module):
         mouse_factor_fasta_folder = None,
         downsample_factor = 128,
         target_length = 896,
-        context_length = 131072,
         lr = 3e-4,
         wd = 0.1,
         validate_every = 250,
