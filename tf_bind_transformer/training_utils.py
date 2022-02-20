@@ -55,7 +55,7 @@ class Trainer(nn.Module):
         biotypes_metadata_path = None,
         include_biotypes_metadata_columns = ['germ_layer', 'cellline_cat'],
         biotypes_metadata_delimiter = ' | ',
-        balance_sampling_by_target = False
+        balance_sampling_by_target = True
     ):
         super().__init__()
         self.model = model
