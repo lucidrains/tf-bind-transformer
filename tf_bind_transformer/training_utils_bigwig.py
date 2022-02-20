@@ -38,6 +38,7 @@ class BigWigTrainer(nn.Module):
         mouse_factor_fasta_folder = None,
         downsample_factor = 128,
         target_length = 896,
+        context_length = 131072,
         lr = 3e-4,
         wd = 0.1,
         validate_every = 250,
@@ -71,12 +72,13 @@ class BigWigTrainer(nn.Module):
             exclude_targets = held_out_targets,
             exclude_cell_types = held_out_cell_types,
             target_length = target_length,
+            context_length = context_length,
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
             bigwig_reduction_type = bigwig_reduction_type,
             filter_sequences_by = ('column_4', 'train'),
-            only_ref = ['hg38']
+            only_ref = ['hg38'],
         )
 
         self.valid_human_ds = BigWigDataset(
@@ -89,6 +91,7 @@ class BigWigTrainer(nn.Module):
             include_targets = held_out_targets,
             include_cell_types = held_out_cell_types,
             target_length = target_length,
+            context_length = context_length,
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
@@ -107,6 +110,7 @@ class BigWigTrainer(nn.Module):
             exclude_targets = held_out_targets,
             exclude_cell_types = held_out_cell_types,
             target_length = target_length,
+            context_length = context_length,
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
@@ -125,6 +129,7 @@ class BigWigTrainer(nn.Module):
             include_targets = held_out_targets,
             include_cell_types = held_out_cell_types,
             target_length = target_length,
+            context_length = context_length,
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
