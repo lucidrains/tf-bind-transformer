@@ -54,7 +54,8 @@ class Trainer(nn.Module):
         include_biotypes_metadata_in_context = False,
         biotypes_metadata_path = None,
         include_biotypes_metadata_columns = ['germ_layer', 'cellline_cat'],
-        biotypes_metadata_delimiter = ' | '
+        biotypes_metadata_delimiter = ' | ',
+        balance_sampling_by_target = False
     ):
         super().__init__()
         self.model = model
@@ -83,7 +84,8 @@ class Trainer(nn.Module):
             include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
             biotypes_metadata_path = biotypes_metadata_path,
             include_biotypes_metadata_columns = include_biotypes_metadata_columns,
-            biotypes_metadata_delimiter = biotypes_metadata_delimiter
+            biotypes_metadata_delimiter = biotypes_metadata_delimiter,
+            balance_sampling_by_target = balance_sampling_by_target
         )
 
         self.neg_ds = NegativePeakDataset(
@@ -117,7 +119,8 @@ class Trainer(nn.Module):
             include_biotypes_metadata_in_context = include_biotypes_metadata_in_context,
             biotypes_metadata_path = biotypes_metadata_path,
             include_biotypes_metadata_columns = include_biotypes_metadata_columns,
-            biotypes_metadata_delimiter = biotypes_metadata_delimiter
+            biotypes_metadata_delimiter = biotypes_metadata_delimiter,
+            balance_sampling_by_target = balance_sampling_by_target
         )
 
         self.valid_neg_ds = NegativePeakDataset(

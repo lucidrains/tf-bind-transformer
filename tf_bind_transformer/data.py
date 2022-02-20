@@ -1,5 +1,5 @@
 from Bio import SeqIO
-from random import choice
+from random import choice, randrange
 from pathlib import Path
 import functools
 import polars as pl
@@ -306,6 +306,7 @@ class RemapAllPeakDataset(Dataset):
         biotypes_metadata_path = None,
         include_biotypes_metadata_columns = [],
         biotypes_metadata_delimiter = ' | ',
+        balance_sampling_by_target = False,
         **kwargs
     ):
         super().__init__()
@@ -358,6 +359,16 @@ class RemapAllPeakDataset(Dataset):
 
         self.experiments_index = fetch_experiments_index(experiments_json_path)
 
+        # balanced target sampling logic
+
+        self.balance_sampling_by_target = balance_sampling_by_target
+
+        self.df_indexed_by_target = []
+
+        for target in self.df.get_column('target').unique().to_list():
+            df_by_target = self.df.filter(pl.col('target') == target)
+            self.df_indexed_by_target.append(df_by_target)
+
         # context string creator
 
         self.context_ds = ContextDataset(
@@ -368,10 +379,24 @@ class RemapAllPeakDataset(Dataset):
         )
 
     def __len__(self):
-        return len(self.df)
+        if self.balance_sampling_by_target:
+            return len(self.df_indexed_by_target)
+        else:
+            return len(self.df)
 
     def __getitem__(self, ind):
-        chr_name, begin, end, _, _, _, experiment_target_cell_type, reading, *_ = self.df.row(ind)
+        # if balancing by target, randomly draw sample from indexed dataframe
+
+        if self.balance_sampling_by_target:
+            filtered_df = self.df_indexed_by_target[ind]
+            rand_ind = randrange(0, len(filtered_df))
+            sample = filtered_df.row(rand_ind)
+        else:
+            sample = self.df.row(ind)
+
+        chr_name, begin, end, _, _, _, experiment_target_cell_type, reading, *_ = sample
+
+        # now aggregate all the data
 
         experiment, target, cell_type = parse_exp_target_cell(experiment_target_cell_type)
 
