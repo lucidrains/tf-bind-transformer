@@ -61,6 +61,7 @@ trainer = BigWigTrainer(
     target_length = TARGET_LENGTH,
     lr = LEARNING_RATE,
     batch_size = BATCH_SIZE,
+    shuffle = True,
     validate_every = VALIDATE_EVERY,
     grad_clip_norm = GRAD_CLIP_MAX_NORM,
     grad_accum_every = GRAD_ACCUM_STEPS,
