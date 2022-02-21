@@ -7,6 +7,8 @@ from tf_bind_transformer.data import RemapAllPeakDataset, NegativePeakDataset, S
 def exists(val):
     return val is not None
 
+def default(val, d):
+    return val if exists(val) else d
 
 # helpers for logging and accumulating values across gradient steps
 
@@ -57,10 +59,12 @@ class Trainer(nn.Module):
         biotypes_metadata_path = None,
         include_biotypes_metadata_columns = ['germ_layer', 'cellline_cat'],
         biotypes_metadata_delimiter = ' | ',
-        balance_sampling_by_target = True
+        balance_sampling_by_target = True,
+        valid_balance_sampling_by_target = None,
     ):
         super().__init__()
         self.model = model
+        valid_balance_sampling_by_target = default(valid_balance_sampling_by_target, balance_sampling_by_target)
 
         remap_df = read_bed(remap_bed_file)
 
@@ -125,7 +129,7 @@ class Trainer(nn.Module):
             biotypes_metadata_path = biotypes_metadata_path,
             include_biotypes_metadata_columns = include_biotypes_metadata_columns,
             biotypes_metadata_delimiter = biotypes_metadata_delimiter,
-            balance_sampling_by_target = balance_sampling_by_target
+            balance_sampling_by_target = valid_balance_sampling_by_target
         )
 
         self.valid_neg_ds = NegativePeakDataset(
@@ -144,7 +148,7 @@ class Trainer(nn.Module):
             biotypes_metadata_path = biotypes_metadata_path,
             include_biotypes_metadata_columns = include_biotypes_metadata_columns,
             biotypes_metadata_delimiter = biotypes_metadata_delimiter,
-            balance_sampling_by_target = balance_sampling_by_target
+            balance_sampling_by_target = valid_balance_sampling_by_target
         )
 
         self.include_scoped_negs = include_scoped_negs
