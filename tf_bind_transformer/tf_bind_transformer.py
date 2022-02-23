@@ -201,7 +201,7 @@ class FILIP(nn.Module):
         self.to_latent_w = nn.Parameter(torch.randn(dim, inner_latent_dim))
         self.to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
 
-        init_temp = torch.log(torch.ones(1, heads, 1, 1) * (dim_head ** -0.5))
+        init_temp = torch.log(torch.ones(1, heads, 1, 1) * (dim_head ** -0.5) * 1e1)
         self.learned_temp = nn.Parameter(init_temp)
 
         self.dropout = nn.Dropout(dropout)
