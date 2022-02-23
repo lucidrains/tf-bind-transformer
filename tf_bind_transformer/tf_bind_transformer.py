@@ -11,7 +11,7 @@ from einops.layers.torch import Rearrange, Reduce
 from contextlib import contextmanager
 
 from enformer_pytorch import Enformer
-from enformer_pytorch.enformer_pytorch import poisson_loss, pearson_corr_coef
+from enformer_pytorch.modeling_enformer import poisson_loss, pearson_corr_coef
 from enformer_pytorch.finetune import freeze_batchnorms_, freeze_all_but_layernorms_, unfreeze_last_n_layers_
 
 from logavgexp_pytorch import logavgexp

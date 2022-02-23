@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from tf_bind_transformer.optimizer import get_optimizer
 from tf_bind_transformer.data_bigwig import BigWigDataset, get_bigwig_dataloader
-from enformer_pytorch.enformer_pytorch import poisson_loss, pearson_corr_coef
+from enformer_pytorch.modeling_enformer import poisson_loss, pearson_corr_coef
 
 def exists(val):
     return val is not None
