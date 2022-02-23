@@ -201,10 +201,12 @@ class FILIP(nn.Module):
         self.to_latent_w = nn.Parameter(torch.randn(dim, inner_latent_dim))
         self.to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
 
+        init_temp = torch.log(torch.ones(1, heads, 1, 1) * (dim_head ** -0.5))
+        self.learned_temp = nn.Parameter(init_temp)
+        self.dropout_prob = dropout
+
         self.context_to_latent_w = nn.Parameter(torch.randn(context_dim, inner_latent_dim))
         self.context_to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
-
-        self.dropout = nn.Dropout(dropout)
 
     def forward(
         self,
@@ -237,18 +239,20 @@ class FILIP(nn.Module):
         else:
             einsum_eq = 'b h i d, b h j d -> b h i j'
 
-        interactions = einsum(einsum_eq, x, context)
+        interactions = einsum(einsum_eq, x, context) * self.learned_temp.exp()
 
         # dropout
 
-        interactions = self.dropout(interactions)
+        mask_value = -torch.finfo(interactions.dtype).max
+        mask = torch.bernoulli(torch.full_like(interactions, self.dropout_prob)).bool()
+        interactions = interactions.masked_fill(mask, mask_value)
 
         # reduction
 
         if exists(context_mask):
             context_mask = rearrange(context_mask, 'b j -> b 1 1 j')
 
-        interactions = logavgexp(interactions, mask = context_mask, dim = -1)
+        interactions = logavgexp(interactions, mask = context_mask, dim = -1, temp = 1.)
         interactions = rearrange(interactions, 'b h i -> b i h')
         return interactions
 

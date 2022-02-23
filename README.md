@@ -25,7 +25,7 @@ from tf_bind_transformer import AdapterModel
 # instantiate enformer or load pretrained
 
 from enformer_pytorch import Enformer
-enformer = Enformer(
+enformer = Enformer.from_hparams(
     dim = 1536,
     depth = 2,
     target_length = 256
@@ -81,7 +81,7 @@ import torch
 from enformer_pytorch import Enformer
 from tf_bind_transformer import AdapterModel
 
-enformer = Enformer(
+enformer = Enformer.from_hparams(
     dim = 1536,
     depth = 2,
     target_length = 256
@@ -127,7 +127,7 @@ from tf_bind_transformer import AdapterModel
 # instantiate enformer or load pretrained
 
 from enformer_pytorch import Enformer
-enformer = Enformer(
+enformer = Enformer.from_hparams(
     dim = 1536,
     depth = 2,
     target_length = 256
@@ -182,7 +182,7 @@ from enformer_pytorch import Enformer
 
 # instantiate enformer or load pretrained
 
-enformer = Enformer(
+enformer = Enformer.from_hparams(
     dim = 1536,
     depth = 2,
     target_length = 256
@@ -260,7 +260,7 @@ dl = get_bigwig_dataloader(ds, batch_size = 2)
 
 # enformer
 
-enformer = Enformer(
+enformer = Enformer.from_hparams(
     dim = 384,
     depth = 1,
     target_length = 896
@@ -322,13 +322,13 @@ working fine-tuning training loop for bind / no-bind prediction
 
 ```python
 import torch
-from enformer_pytorch import load_pretrained_model
+from enformer_pytorch import Enformer
 
 from tf_bind_transformer import AdapterModel, Trainer
 
 # instantiate enformer or load pretrained
 
-enformer = load_pretrained_model('preview', target_length = -1)
+enformer = Enformer.from_pretrained('EleutherAI/preview', target_length = -1)
 
 # instantiate model wrapper that takes in enformer
 
@@ -375,7 +375,7 @@ from dotenv import load_dotenv
 # set path to cache in .env and unset the next comment
 # load_dotenv()
 
-from enformer_pytorch import load_pretrained_model
+from enformer_pytorch import Enformer
 from tf_bind_transformer import AdapterModel, BigWigTrainer
 
 # training constants
@@ -403,7 +403,7 @@ HELD_OUT_TARGET = ['SOX2']
 
 # instantiate enformer or load pretrained
 
-enformer = load_pretrained_model('preview', target_length = TARGET_LENGTH)
+enformer = Enformer.from_pretrained('EleutherAI/preview', target_length = TARGET_LENGTH)
 
 # instantiate model wrapper that takes in enformer
 
