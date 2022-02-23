@@ -328,7 +328,7 @@ from tf_bind_transformer import AdapterModel, Trainer
 
 # instantiate enformer or load pretrained
 
-enformer = Enformer.from_pretrained('EleutherAI/preview', target_length = -1)
+enformer = Enformer.from_pretrained('EleutherAI/enformer-preview', target_length = -1)
 
 # instantiate model wrapper that takes in enformer
 
@@ -403,7 +403,7 @@ HELD_OUT_TARGET = ['SOX2']
 
 # instantiate enformer or load pretrained
 
-enformer = Enformer.from_pretrained('EleutherAI/preview', target_length = TARGET_LENGTH)
+enformer = Enformer.from_pretrained('EleutherAI/enformer-preview', target_length = TARGET_LENGTH)
 
 # instantiate model wrapper that takes in enformer
 
