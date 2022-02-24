@@ -26,6 +26,12 @@ def exists(val):
 def default(val, d):
     return val if exists(val) else d
 
+def find_first_index(cond, arr):
+    for ind, el in enumerate(arr):
+        if cond(el):
+            return ind
+    return -1
+
 def cast_list(val = None):
     if not exists(val):
         return []
@@ -78,7 +84,11 @@ def fetch_experiments_index(path):
 # fetch protein sequences by gene name and uniprot id
 
 class FactorProteinDatasetByUniprotID(Dataset):
-    def __init__(self, folder):
+    def __init__(
+        self,
+        folder,
+        species_priority = ['human', 'mouse']
+    ):
         super().__init__()
         fasta_paths = [*Path(folder).glob('*.fasta')]
         assert len(fasta_paths) > 0, f'no fasta files found at {folder}'
@@ -105,17 +115,39 @@ class FactorProteinDatasetByUniprotID(Dataset):
 # fetch
 
 class FactorProteinDataset(Dataset):
-    def __init__(self, folder, return_tuple_only = False):
+    def __init__(
+        self,
+        folder,
+        species_priority = ['human', 'mouse'],
+        return_tuple_only = False
+    ):
         super().__init__()
         fasta_paths = [*Path(folder).glob('*.fasta')]
         assert len(fasta_paths) > 0, f'no fasta files found at {folder}'
         self.paths = fasta_paths
+
         self.index_by_gene = defaultdict(list)
         self.return_tuple_only = return_tuple_only # whether to return tuple even if there is only one subunit
 
         for path in fasta_paths:
             gene, uniprotid, *_ = path.stem.split('.')
             self.index_by_gene[gene].append(path)
+
+        # prioritize fasta files of certain species
+        # but allow for appropriate fallback, by order of species_priority
+
+        get_species_from_path = lambda p: p.stem.split('_')[1].lower()
+
+        for gene, gene_paths in self.index_by_gene.items():
+            species_count = list(map(lambda specie: len(list(filter(lambda p: get_species_from_path(p) == specie, gene_paths))), species_priority))
+            species_ind_non_zero = find_first_index(lambda t: t > 0, species_count)
+
+            if species_ind_non_zero == -1:
+                del self.index_by_gene[gene]
+                continue
+
+            species = species_priority[species_ind_non_zero]
+            self.index_by_gene[gene] = list(filter(lambda p: get_species_from_path(p) == species, gene_paths))
 
     def __len__(self):
         return len(self.paths)

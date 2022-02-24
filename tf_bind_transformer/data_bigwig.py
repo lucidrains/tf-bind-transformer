@@ -60,6 +60,7 @@ class BigWigDataset(Dataset):
         include_biotypes_metadata_columns = [],
         biotypes_metadata_delimiter = ' | ',
         only_ref = ['mm10', 'hg38'],
+        factor_species_priority = ['human', 'mouse'],
         downsample_factor = 128,
         target_length = 896,
         bigwig_reduction_type = 'sum',
@@ -99,7 +100,7 @@ class BigWigDataset(Dataset):
             col_name, col_val = filter_sequences_by
             loci = loci.filter(pl.col(col_name) == col_val)
 
-        self.factor_ds = FactorProteinDataset(factor_fasta_folder)
+        self.factor_ds = FactorProteinDataset(factor_fasta_folder, species_priority = factor_species_priority)
 
         annot_df = chip_atlas_add_experiment_target_cell(annot_df)
         annot_df = filter_df_by_tfactor_fastas(annot_df, factor_fasta_folder)
