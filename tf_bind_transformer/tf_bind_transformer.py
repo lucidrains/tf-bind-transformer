@@ -42,6 +42,9 @@ def null_context():
 def l2norm(t):
     return F.normalize(t, dim = -1)
 
+def prob_mask_like(t, prob):
+    return torch.zeros_like(t).float().uniform_(0, 1) < prob
+
 def fourier_encode(x, dims, theta = 20000):
     device, dtype = x.device, x.dtype
     emb = math.log(theta) / (dims // 2)
@@ -201,8 +204,9 @@ class FILIP(nn.Module):
         self.to_latent_w = nn.Parameter(torch.randn(dim, inner_latent_dim))
         self.to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
 
-        self.dropout = nn.Dropout(dropout)
+        self.pre_attn_dropout = dropout
 
+        self.null_context = nn.Parameter(torch.randn(heads, dim_head))
         self.context_to_latent_w = nn.Parameter(torch.randn(context_dim, inner_latent_dim))
         self.context_to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
 
@@ -212,7 +216,7 @@ class FILIP(nn.Module):
         context,
         context_mask = None
     ):
-        heads = self.heads
+        b, heads, device = x.shape[0], self.heads, x.device
 
         x = einsum('b n d, d e -> b n e', x, self.to_latent_w)
         x = x + self.to_latent_b
@@ -237,16 +241,29 @@ class FILIP(nn.Module):
         else:
             einsum_eq = 'b h i d, b h j d -> b h i j'
 
+        # create context mask if not exist
+
+        if not exists(context_mask):
+            context_mask = torch.ones((b, context.shape[-1]), device = device).bool()
+
+        # dropout mask by dropout prob
+
+        if self.training:
+            keep_mask = prob_mask_like(context_mask, 1 - self.pre_attn_dropout)
+            context_mask = context_mask & keep_mask
+
+        # add null context and modify mask
+
+        context_mask = F.pad(context_mask, (1, 0), value = True)
+        context_mask = rearrange(context_mask, 'b j -> b 1 1 j')
+
+        null_context = repeat(self.null_context, 'h d -> b h 1 d', b = b)
+        context = torch.cat((null_context, context), dim = -2)
+
+        # differentiable max, as in FILIP paper
+
         interactions = einsum(einsum_eq, x, context)
-
-        # reduction
-
-        if exists(context_mask):
-            context_mask = rearrange(context_mask, 'b j -> b 1 1 j')
-
         interactions = logavgexp(interactions, mask = context_mask, dim = -1, temp = 0.05)
-        interactions = self.dropout(interactions)
-
         interactions = rearrange(interactions, 'b h i -> b i h')
         return interactions
 
