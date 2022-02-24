@@ -201,9 +201,6 @@ class FILIP(nn.Module):
         self.to_latent_w = nn.Parameter(torch.randn(dim, inner_latent_dim))
         self.to_latent_b = nn.Parameter(torch.randn(inner_latent_dim))
 
-        init_temp = torch.log(torch.ones(1, heads, 1, 1) * (dim_head ** -0.5) * 1e1)
-        self.learned_temp = nn.Parameter(init_temp)
-
         self.dropout = nn.Dropout(dropout)
 
         self.context_to_latent_w = nn.Parameter(torch.randn(context_dim, inner_latent_dim))
@@ -240,14 +237,14 @@ class FILIP(nn.Module):
         else:
             einsum_eq = 'b h i d, b h j d -> b h i j'
 
-        interactions = einsum(einsum_eq, x, context) * self.learned_temp.exp()
+        interactions = einsum(einsum_eq, x, context)
 
         # reduction
 
         if exists(context_mask):
             context_mask = rearrange(context_mask, 'b j -> b 1 1 j')
 
-        interactions = logavgexp(interactions, mask = context_mask, dim = -1, temp = 1.)
+        interactions = logavgexp(interactions, mask = context_mask, dim = -1, temp = 0.05)
         interactions = self.dropout(interactions)
 
         interactions = rearrange(interactions, 'b h i -> b i h')
