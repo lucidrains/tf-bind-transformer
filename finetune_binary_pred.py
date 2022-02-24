@@ -8,7 +8,7 @@ from tf_bind_transformer import AdapterModel, Trainer
 
 # instantiate enformer or load pretrained
 
-enformer = Enformer(
+enformer = Enformer.from_hparams(
     dim = 768,
     depth = 4,
     heads = 8,
@@ -46,6 +46,8 @@ TFACTOR_FOLDER = './tfactor.fastas'
 FASTA_FILE_PATH = './hg38.ml.fa'
 NON_PEAK_PATH = './generated-non-peaks.bed'
 
+CONTEXT_LENGTH = 4096
+
 SCOPED_NEGS_REMAP_PATH = './neg-npy/remap2022.bed'
 SCOPED_NEGS_PATH = './neg-npy'
 
@@ -58,6 +60,7 @@ HELD_OUT_TARGET = ['AFF4']
 
 trainer = Trainer(
     model,
+    context_length = CONTEXT_LENGTH,
     batch_size = BATCH_SIZE,
     validate_every = VALIDATE_EVERY,
     grad_clip_norm = GRAD_CLIP_MAX_NORM,
