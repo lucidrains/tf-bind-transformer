@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 # set path to cache in .env and unset the next comment
 # load_dotenv()
 
-from enformer_pytorch import load_pretrained_model
+from enformer_pytorch import Enformer
 from tf_bind_transformer import AdapterModel, BigWigTrainer
 
 # training constants
@@ -31,11 +31,11 @@ TARGET_LENGTH = 896
 TRAIN_CHROMOSOMES = [*range(1, 24, 2), 'X'] # train on odd chromosomes
 VALID_CHROMOSOMES = [*range(2, 24, 2)]      # validate on even
 
-HELD_OUT_TARGET = ['SOX2']
+HELD_OUT_TARGET = ['GATA4']
 
 # instantiate enformer or load pretrained
 
-enformer = load_pretrained_model('preview', target_length = TARGET_LENGTH)
+enformer = Enformer.from_pretrained('EleutherAI/enformer-preview', target_length = TARGET_LENGTH)
 
 # instantiate model wrapper that takes in enformer
 
