@@ -288,6 +288,37 @@ loss = model(
 
 loss.backward()
 ```
+## Data
+
+The data needed for training is at <a href="https://remap.univ-amu.fr/download_page">this download page</a>.
+
+### Transcription factors for Human and Mouse
+
+To download the protein sequences for both species, you need to download the remap CRMs bed files, from which all the targets will be extracted, and fastas to be downloaded from Uniprot.
+
+Download human remap CRMS
+
+```bash
+$ wget https://remap.univ-amu.fr/storage/remap2022/hg38/MACS2/remap2022_crm_macs2_hg38_v1_0.bed.gz
+```
+
+Download mouse remap CRMs
+
+```bash
+$ wget https://remap.univ-amu.fr/storage/remap2022/mm10/MACS2/remap2022_crm_macs2_mm10_v1_0.bed.gz
+```
+
+Downloading all human transcription factors
+
+```bash
+$ python script/fetch_factor_fastas.py --species human
+```
+
+For mouse transcription factors
+
+```bash
+$ python script/fetch_factor_fastas.py --species mouse
+````
 
 ## Generating Negatives
 
