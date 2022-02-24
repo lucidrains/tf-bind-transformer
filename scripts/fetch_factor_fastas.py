@@ -2,6 +2,7 @@ import requests
 from pathlib import Path
 import click
 import polars as pl
+from tqdm import tqdm
 from tf_bind_transformer.gene_utils import parse_gene_name
 from tf_bind_transformer.data import read_bed
 
@@ -67,7 +68,7 @@ def fetch_factors(
     results_folder = Path(fasta_folder)
     results_folder.mkdir(exist_ok = True, parents = True)
 
-    for unparsed_gene_name in genes:
+    for unparsed_gene_name in tqdm(genes):
         for gene_name in parse_gene_name(unparsed_gene_name):
 
             if gene_name in processed_genes:

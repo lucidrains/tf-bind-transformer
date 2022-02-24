@@ -300,12 +300,14 @@ Download human remap CRMS
 
 ```bash
 $ wget https://remap.univ-amu.fr/storage/remap2022/hg38/MACS2/remap2022_crm_macs2_hg38_v1_0.bed.gz
+$ gzip -d remap2022_crm_macs2_hg38_v1_0.bed.gz
 ```
 
 Download mouse remap CRMs
 
 ```bash
 $ wget https://remap.univ-amu.fr/storage/remap2022/mm10/MACS2/remap2022_crm_macs2_mm10_v1_0.bed.gz
+$ gzip -d remap2022_crm_macs2_mm10_v1_0.bed.gz
 ```
 
 Downloading all human transcription factors
