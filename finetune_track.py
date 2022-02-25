@@ -31,7 +31,7 @@ TARGET_LENGTH = 896
 TRAIN_CHROMOSOMES = [*range(1, 24, 2), 'X'] # train on odd chromosomes
 VALID_CHROMOSOMES = [*range(2, 24, 2)]      # validate on even
 
-HELD_OUT_TARGET = ['GATA4']
+HELD_OUT_TARGET = ['GATA2']
 
 # instantiate enformer or load pretrained
 
