@@ -43,8 +43,10 @@ class BigWigTrainer(nn.Module):
         validate_every = 250,
         grad_clip_norm = None,
         grad_accum_every = 1,
-        held_out_targets = [],
-        held_out_cell_types = [],
+        held_out_targets_human = [],
+        held_out_targets_mouse = [],
+        held_out_cell_types_human = [],
+        held_out_cell_types_mouse = [],
         context_length = 4096,
         shuffle = False,
         shift_aug_range = (-2, 2),
@@ -54,7 +56,8 @@ class BigWigTrainer(nn.Module):
         biotypes_metadata_path = None,
         include_biotypes_metadata_columns = ['germ_layer', 'cellline_cat'],
         biotypes_metadata_delimiter = ' | ',
-        bigwig_reduction_type = 'sum'
+        bigwig_reduction_type = 'sum',
+        enformer_train_valid_split = True
     ):
         super().__init__()
         self.model = model
@@ -68,15 +71,15 @@ class BigWigTrainer(nn.Module):
             enformer_loci_path = human_loci_path,
             annot_file = annot_file_path,
             fasta_file = human_fasta_file,
-            exclude_targets = held_out_targets,
-            exclude_cell_types = held_out_cell_types,
+            exclude_targets = held_out_targets_human,
+            exclude_cell_types = held_out_cell_types_human,
             target_length = target_length,
             context_length = context_length,
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
             bigwig_reduction_type = bigwig_reduction_type,
-            filter_sequences_by = ('column_4', 'train'),
+            filter_sequences_by = ('column_4', 'train') if enformer_train_valid_split else None,
             only_ref = ['hg38'],
             factor_species_priority = ['human', 'mouse', 'unknown']
         )
@@ -88,15 +91,15 @@ class BigWigTrainer(nn.Module):
             enformer_loci_path = human_loci_path,
             annot_file = annot_file_path,
             fasta_file = human_fasta_file,
-            include_targets = held_out_targets,
-            include_cell_types = held_out_cell_types,
+            include_targets = held_out_targets_human,
+            include_cell_types = held_out_cell_types_human,
             target_length = target_length,
             context_length = context_length,
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
             bigwig_reduction_type = bigwig_reduction_type,
-            filter_sequences_by = ('column_4', 'valid'),
+            filter_sequences_by = ('column_4', 'valid') if enformer_train_valid_split else None,
             only_ref = ['hg38'],
             factor_species_priority = ['human', 'mouse', 'unknown']
         )
@@ -108,15 +111,15 @@ class BigWigTrainer(nn.Module):
             enformer_loci_path = mouse_loci_path,
             annot_file = annot_file_path,
             fasta_file = mouse_fasta_file,
-            exclude_targets = held_out_targets,
-            exclude_cell_types = held_out_cell_types,
+            exclude_targets = held_out_targets_mouse,
+            exclude_cell_types = held_out_cell_types_mouse,
             target_length = target_length,
             context_length = context_length,
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
             bigwig_reduction_type = bigwig_reduction_type,
-            filter_sequences_by = ('column_4', 'train'),
+            filter_sequences_by = ('column_4', 'train') if enformer_train_valid_split else None,
             only_ref = ['mm10'],
             factor_species_priority = ['mouse', 'human', 'unknown']
         )
@@ -128,15 +131,15 @@ class BigWigTrainer(nn.Module):
             enformer_loci_path = mouse_loci_path,
             annot_file = annot_file_path,
             fasta_file = mouse_fasta_file,
-            include_targets = held_out_targets,
-            include_cell_types = held_out_cell_types,
+            include_targets = held_out_targets_mouse,
+            include_cell_types = held_out_cell_types_mouse,
             target_length = target_length,
             context_length = context_length,
             downsample_factor = downsample_factor,
             shift_augs = shift_aug_range,
             rc_aug = rc_aug,
             bigwig_reduction_type = bigwig_reduction_type,
-            filter_sequences_by = ('column_4', 'valid'),
+            filter_sequences_by = ('column_4', 'valid') if enformer_train_valid_split else None,
             only_ref = ['mm10'],
             factor_species_priority = ['mouse', 'human', 'unknown']
         )
@@ -146,24 +149,22 @@ class BigWigTrainer(nn.Module):
         len_valid_human = len(self.valid_human_ds)
         len_valid_mouse = len(self.valid_mouse_ds)
 
-        self.has_human = len_train_human > 0 and len_valid_human > 0
-        self.has_mouse = len_train_mouse > 0 and len_valid_mouse > 0
+        self.has_train = len_train_human > 0 or len_train_mouse > 0
+        self.has_valid = len_valid_human > 0 or len_valid_mouse > 0
 
-        if self.has_human:
-            print(f'training human with {self.human_ds.ntargets} target')
+        if self.has_train:
+            print(f'training with {self.human_ds.ntargets} human targets and {self.mouse_ds.ntargets} mice targets')
 
-        if self.has_mouse:
-            print(f'training mouse with {self.mouse_ds.ntargets} target')
+        if self.has_valid:
+            print(f'validating with {self.valid_human_ds.ntargets} human targets and {self.valid_mouse_ds.ntargets} mice targets')
 
-        assert self.has_human or self.has_mouse, 'must have training samples for either human or mouse'
+        assert self.has_train and self.has_valid, 'must have training and validation samples in order to proceed'
 
-        if self.has_human:
-            self.train_human_dl = get_bigwig_dataloader(self.human_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
-            self.valid_human_dl = get_bigwig_dataloader(self.valid_human_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
+        self.train_human_dl = get_bigwig_dataloader(self.human_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_train_human > 0 else None
+        self.train_mouse_dl = get_bigwig_dataloader(self.mouse_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_train_mouse > 0 else None
 
-        if self.has_mouse:
-            self.train_mouse_dl = get_bigwig_dataloader(self.mouse_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
-            self.valid_mouse_dl = get_bigwig_dataloader(self.valid_mouse_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size)
+        self.valid_human_dl = get_bigwig_dataloader(self.valid_human_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_valid_human > 0 else None
+        self.valid_mouse_dl = get_bigwig_dataloader(self.valid_mouse_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_valid_mouse > 0 else None
 
         self.optim = get_optimizer(model.parameters(), lr = lr, wd = wd)
 
@@ -185,9 +186,9 @@ class BigWigTrainer(nn.Module):
         self.model.train()
 
         log = {}
-        loss_divisor = 2 if self.has_human and self.has_mouse else 1
+        loss_divisor = 2 if exists(self.train_human_dl) and exists(self.train_mouse_dl) else 1
 
-        if self.has_human:
+        if exists(self.train_human_dl):
             for _ in range(self.grad_accum_every):
                 seq, tf_aa, contextual_texts, target = next(self.train_human_dl)
                 seq, target = seq.cuda(), target.cuda()
@@ -206,7 +207,7 @@ class BigWigTrainer(nn.Module):
 
             print(f'{curr_step} human loss: {log["human_loss"]}')
 
-        if self.has_mouse:
+        if exists(self.train_mouse_dl):
             for _ in range(self.grad_accum_every):
                 seq, tf_aa, contextual_texts, target = next(self.train_mouse_dl)
                 seq, target = seq.cuda(), target.cuda()
@@ -240,7 +241,7 @@ class BigWigTrainer(nn.Module):
         if (curr_step % self.validate_every) == 0:
             self.model.eval()
 
-            if self.has_human:
+            if exists(self.valid_human_dl):
                 for _ in range(self.grad_accum_every):
                     seq, tf_aa, contextual_texts, target = next(self.valid_human_dl)
                     seq, target = seq.cuda(), target.cuda()
@@ -262,7 +263,7 @@ class BigWigTrainer(nn.Module):
                 print(f'{curr_step} human valid loss: {log["human_valid_loss"]}')
                 print(f'{curr_step} human valid pearson R: {log["human_valid_corr_coef"]}')
 
-            if self.has_mouse:
+            if exists(self.valid_mouse_dl):
                 for _ in range(self.grad_accum_every):
                     seq, tf_aa, contextual_texts, target = next(self.valid_mouse_dl)
                     seq, target = seq.cuda(), target.cuda()
