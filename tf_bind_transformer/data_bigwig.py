@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 from tf_bind_transformer.data import FactorProteinDataset, ContextDataset, cast_list, filter_df_by_tfactor_fastas
-from tf_bind_transformer.data import pl_isin, pl_notin, fetch_experiments_index, parse_exp_target_cell, read_bed, cycle
+from tf_bind_transformer.data import pl_isin, pl_notin, fetch_experiments_index, parse_exp_target_cell, read_bed, cycle, filter_by_col_isin
 from tf_bind_transformer.data import CHR_IDS, CHR_NAMES, get_chr_names
 from enformer_pytorch import FastaInterval
 
@@ -81,7 +81,7 @@ class BigWigDataset(Dataset):
         annot_df = annot_df.filter(pl_isin('column_2', only_ref))
 
         # :TODO find out why this step is taking forever
-        annot_df = annot_df.filter(pl_isin('column_1', bw_experiments))
+        annot_df = filter_by_col_isin(annot_df, 'column_1', bw_experiments)
 
         if df_frac < 1:
             annot_df = annot_df.sample(frac = df_frac)
