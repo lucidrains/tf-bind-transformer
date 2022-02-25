@@ -189,7 +189,7 @@ class BigWigTrainer(nn.Module):
         loss_divisor = 2 if exists(self.train_human_dl) and exists(self.train_mouse_dl) else 1
 
         if exists(self.train_human_dl):
-            for _ in range(self.grad_accum_every):
+            for _ in range(grad_accum_every):
                 seq, tf_aa, contextual_texts, target = next(self.train_human_dl)
                 seq, target = seq.cuda(), target.cuda()
 
@@ -208,7 +208,7 @@ class BigWigTrainer(nn.Module):
             print(f'{curr_step} human loss: {log["human_loss"]}')
 
         if exists(self.train_mouse_dl):
-            for _ in range(self.grad_accum_every):
+            for _ in range(grad_accum_every):
                 seq, tf_aa, contextual_texts, target = next(self.train_mouse_dl)
                 seq, target = seq.cuda(), target.cuda()
 
@@ -242,7 +242,7 @@ class BigWigTrainer(nn.Module):
             self.model.eval()
 
             if exists(self.valid_human_dl):
-                for _ in range(self.grad_accum_every):
+                for _ in range(grad_accum_every):
                     seq, tf_aa, contextual_texts, target = next(self.valid_human_dl)
                     seq, target = seq.cuda(), target.cuda()
 
@@ -252,11 +252,11 @@ class BigWigTrainer(nn.Module):
                         contextual_free_text = contextual_texts,
                     )
 
-                    valid_poisson_loss = poisson_loss(pred, target)
+                    valid_loss = self.model.loss_fn(pred, target)
                     valid_corr_coef = pearson_corr_coef(pred, target)
 
                     log = accum_log(log, {
-                        'human_valid_loss': valid_poisson_loss.item() / grad_accum_every,
+                        'human_valid_loss': valid_loss.item() / grad_accum_every,
                         'human_valid_corr_coef': valid_corr_coef.item() / grad_accum_every
                     })
 
@@ -264,7 +264,7 @@ class BigWigTrainer(nn.Module):
                 print(f'{curr_step} human valid pearson R: {log["human_valid_corr_coef"]}')
 
             if exists(self.valid_mouse_dl):
-                for _ in range(self.grad_accum_every):
+                for _ in range(grad_accum_every):
                     seq, tf_aa, contextual_texts, target = next(self.valid_mouse_dl)
                     seq, target = seq.cuda(), target.cuda()
 
@@ -274,11 +274,11 @@ class BigWigTrainer(nn.Module):
                         contextual_free_text = contextual_texts,
                     )
 
-                    valid_poisson_loss = poisson_loss(pred, target)
+                    valid_loss = self.model.loss_fn(pred, target)
                     valid_corr_coef = pearson_corr_coef(pred, target)
 
                     log = accum_log(log, {
-                        'mouse_valid_loss': valid_poisson_loss.item() / grad_accum_every,
+                        'mouse_valid_loss': valid_loss.item() / grad_accum_every,
                         'mouse_valid_corr_coef': valid_corr_coef.item() / grad_accum_every
                     })
 

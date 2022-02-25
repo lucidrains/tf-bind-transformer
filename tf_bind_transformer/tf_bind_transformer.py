@@ -53,6 +53,9 @@ def fourier_encode(x, dims, theta = 20000):
     emb = torch.cat((emb.sin(), emb.cos()), dim = -1)
     return emb
 
+def corr_coef_loss(pred, target):
+    return 1 - pearson_corr_coef(pred, target)
+
 # genetic sequence caching enformer forward decorator
 
 def cache_enformer_forward(fn):
@@ -292,6 +295,7 @@ class AdapterModel(nn.Module):
         condition_squeeze_excite = False,
         condition_film = False,
         condition_hypergrid = False,
+        use_corr_coef_loss = False,
         **kwargs
     ):
         super().__init__()
@@ -397,6 +401,8 @@ class AdapterModel(nn.Module):
             )
 
         else:
+            self.loss_fn = poisson_loss if not corr_coef_loss else corr_coef_loss
+
             self.to_pred = nn.Sequential(
                 nn.Linear(latent_heads, 1),
                 Rearrange('... 1 -> ...'),
@@ -523,7 +529,7 @@ class AdapterModel(nn.Module):
             return pearson_corr_coef(pred, target)
 
         if exists(target) and not self.binary_target:
-            return poisson_loss(pred, target)
+            return self.loss_fn(pred, target)
 
         if not exists(target):
             return pred
