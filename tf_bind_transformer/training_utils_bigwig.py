@@ -78,7 +78,7 @@ class BigWigTrainer(nn.Module):
             bigwig_reduction_type = bigwig_reduction_type,
             filter_sequences_by = ('column_4', 'train'),
             only_ref = ['hg38'],
-            factor_species_priority = ['human', 'mouse']
+            factor_species_priority = ['human', 'mouse', 'unknown']
         )
 
         self.valid_human_ds = BigWigDataset(
@@ -98,7 +98,7 @@ class BigWigTrainer(nn.Module):
             bigwig_reduction_type = bigwig_reduction_type,
             filter_sequences_by = ('column_4', 'valid'),
             only_ref = ['hg38'],
-            factor_species_priority = ['human', 'mouse']
+            factor_species_priority = ['human', 'mouse', 'unknown']
         )
 
         self.mouse_ds = BigWigDataset(
@@ -118,7 +118,7 @@ class BigWigTrainer(nn.Module):
             bigwig_reduction_type = bigwig_reduction_type,
             filter_sequences_by = ('column_4', 'train'),
             only_ref = ['mm10'],
-            factor_species_priority = ['mouse', 'human']
+            factor_species_priority = ['mouse', 'human', 'unknown']
         )
 
         self.valid_mouse_ds = BigWigDataset(
@@ -138,7 +138,7 @@ class BigWigTrainer(nn.Module):
             bigwig_reduction_type = bigwig_reduction_type,
             filter_sequences_by = ('column_4', 'valid'),
             only_ref = ['mm10'],
-            factor_species_priority = ['mouse', 'human']
+            factor_species_priority = ['mouse', 'human', 'unknown']
         )
 
         len_train_human = len(self.human_ds)

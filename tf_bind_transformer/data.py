@@ -118,7 +118,7 @@ class FactorProteinDataset(Dataset):
     def __init__(
         self,
         folder,
-        species_priority = ['human', 'mouse'],
+        species_priority = ['human', 'mouse', 'unknown'],
         return_tuple_only = False
     ):
         super().__init__()
@@ -136,7 +136,7 @@ class FactorProteinDataset(Dataset):
         # prioritize fasta files of certain species
         # but allow for appropriate fallback, by order of species_priority
 
-        get_species_from_path = lambda p: p.stem.split('_')[-1].lower()
+        get_species_from_path = lambda p: p.stem.split('_')[-1].lower() if '_' in p.stem else 'unknown'
 
         filtered_index_by_gene = defaultdict(list)
 
