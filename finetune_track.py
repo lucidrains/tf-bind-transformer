@@ -28,9 +28,6 @@ ANNOT_FILE_PATH =  './chip_atlas/annot.tab'
 
 TARGET_LENGTH = 896
 
-TRAIN_CHROMOSOMES = [*range(1, 24, 2), 'X'] # train on odd chromosomes
-VALID_CHROMOSOMES = [*range(2, 24, 2)]      # validate on even
-
 HELD_OUT_TARGET = ['GATA2']
 
 # instantiate enformer or load pretrained
@@ -67,8 +64,6 @@ trainer = BigWigTrainer(
     grad_accum_every = GRAD_ACCUM_STEPS,
     human_factor_fasta_folder = TFACTOR_FOLDER,
     mouse_factor_fasta_folder = TFACTOR_FOLDER,
-    train_chromosome_ids = TRAIN_CHROMOSOMES,
-    valid_chromosome_ids = VALID_CHROMOSOMES,
     held_out_targets = HELD_OUT_TARGET
 )
 
