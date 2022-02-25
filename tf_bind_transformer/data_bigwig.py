@@ -27,7 +27,7 @@ def chip_atlas_add_experiment_target_cell(
     df = df.clone()
 
     targets = df.select(col_target)
-    targets = targets.rename({col_target: 'target'}).to_series(0)
+    targets = targets.to_series(0).str.to_uppercase().rename('target')
     df.insert_at_idx(2, targets)
 
     cell_type = df.select(col_cell_type)
