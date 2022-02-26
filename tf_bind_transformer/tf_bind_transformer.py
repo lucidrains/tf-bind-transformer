@@ -294,7 +294,7 @@ class AdapterModel(nn.Module):
         fourier_dims = 256,
         condition_squeeze_excite = False,
         condition_film = False,
-        condition_hypergrid = False,
+        condition_hypergrid = True,
         use_corr_coef_loss = False,
         **kwargs
     ):
@@ -374,10 +374,10 @@ class AdapterModel(nn.Module):
 
         # hypergrid conditioning
 
-        self.linear_with_hypergrid = None
-
-        if exists(condition_hypergrid):
+        if condition_hypergrid:
             self.linear_with_hypergrid = HypergridLinear(latent_heads, latent_heads, context_dim = contextual_embed_dim)
+        else:
+            self.linear_to_logits = nn.Linear(latent_heads, latent_heads)
 
         # to prediction
 
@@ -516,7 +516,10 @@ class AdapterModel(nn.Module):
 
         # linear with hypergrid conditioning
 
-        logits = self.linear_with_hypergrid(interactions, context = contextual_embed)
+        if exists(self.linear_with_hypergrid):
+            logits = self.linear_with_hypergrid(interactions, context = contextual_embed)
+        else:
+            logits = self.linear_to_logits(interactions)
 
         # to *-seq prediction
 
