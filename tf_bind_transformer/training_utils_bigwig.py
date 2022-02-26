@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from tf_bind_transformer.optimizer import get_optimizer
-from tf_bind_transformer.data_bigwig import BigWigDataset, get_bigwig_dataloader
+from tf_bind_transformer.data_bigwig import BigWigDataset, BigWigTracksOnlyDataset, get_bigwig_dataloader
 from enformer_pytorch.modeling_enformer import poisson_loss, pearson_corr_coef
 
 def exists(val):
@@ -26,13 +26,14 @@ class BigWigTrainer(nn.Module):
         model,
         *,
         human_factor_fasta_folder,
-        bigwig_folder_path,
         annot_file_path,
         human_loci_path,
         mouse_loci_path,
         human_fasta_file,
         mouse_fasta_file,
         batch_size,
+        bigwig_tracks_only_folder_path = None,
+        bigwig_folder_path = None,
         train_chromosome_ids = None,
         valid_chromosome_ids = None,
         mouse_factor_fasta_folder = None,
@@ -60,6 +61,8 @@ class BigWigTrainer(nn.Module):
         enformer_train_valid_split = True
     ):
         super().__init__()
+        assert exists(bigwig_folder_path) or exists(bigwig_tracks_only_folder_path)
+
         self.model = model
 
         mouse_factor_fasta_folder = default(mouse_factor_fasta_folder, human_factor_fasta_folder)
@@ -144,21 +147,53 @@ class BigWigTrainer(nn.Module):
             factor_species_priority = ['mouse', 'human', 'unknown']
         )
 
+        self.tracks_only_ds = BigWigTracksOnlyDataset(
+            bigwig_folder = bigwig_tracks_only_folder_path,
+            human_enformer_loci_path = human_loci_path,
+            mouse_enformer_loci_path = mouse_loci_path,
+            human_fasta_file = human_fasta_file,
+            mouse_fasta_file = mouse_fasta_file,
+            annot_file = annot_file_path,
+            downsample_factor = downsample_factor,
+            target_length = target_length,
+            filter_sequences_by = ('column_4', 'train')
+        )
+
+        self.valid_tracks_only_ds = BigWigTracksOnlyDataset(
+            bigwig_folder = bigwig_tracks_only_folder_path,
+            human_enformer_loci_path = human_loci_path,
+            mouse_enformer_loci_path = mouse_loci_path,
+            human_fasta_file = human_fasta_file,
+            mouse_fasta_file = mouse_fasta_file,
+            annot_file = annot_file_path,
+            downsample_factor = downsample_factor,
+            target_length = target_length,
+            filter_sequences_by = ('column_4', 'valid')
+        )
+
         len_train_human = len(self.human_ds)
         len_train_mouse = len(self.mouse_ds)
         len_valid_human = len(self.valid_human_ds)
         len_valid_mouse = len(self.valid_mouse_ds)
+        len_tracks = len(self.tracks_only_ds)
+        len_valid_tracks = len(self.valid_tracks_only_ds)
 
-        self.has_train = len_train_human > 0 or len_train_mouse > 0
-        self.has_valid = len_valid_human > 0 or len_valid_mouse > 0
+        self.has_train = len_train_human > 0 or len_train_mouse > 0 or len_tracks > 0
+        self.has_valid = len_valid_human > 0 or len_valid_mouse > 0 or len_valid_tracks > 0
 
         if self.has_train:
-            print(f'training with {self.human_ds.ntargets} human targets and {self.mouse_ds.ntargets} mice targets')
+            print(f'training with {self.human_ds.ntargets} human targets and {self.mouse_ds.ntargets} mice targets and {self.tracks_only_ds.ntargets} independent tracks')
 
         if self.has_valid:
-            print(f'validating with {self.valid_human_ds.ntargets} human targets and {self.valid_mouse_ds.ntargets} mice targets')
+            print(f'validating with {self.valid_human_ds.ntargets} human targets and {self.valid_mouse_ds.ntargets} mice targets and {self.valid_tracks_only_ds.ntargets} indepedent tracks')
 
         assert self.has_train and self.has_valid, 'must have training and validation samples in order to proceed'
+
+        if len_tracks > 0:
+            assert self.tracks_only_ds.ntargets == model.head_num_tracks, f'number of tracks on adapter ({model.head_num_tracks}) does not equal the number of targets found in folder {len_tracks.ntargets}'
+
+        if len_valid_tracks > 0:
+            assert self.valid_tracks_only_ds.ntargets == model.head_num_tracks, f'number of tracks on adapter ({model.head_num_tracks}) does not equal the number of targets found in folder {len_valid_tracks.ntargets}'
 
         self.train_human_dl = get_bigwig_dataloader(self.human_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_train_human > 0 else None
         self.train_mouse_dl = get_bigwig_dataloader(self.mouse_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_train_mouse > 0 else None
