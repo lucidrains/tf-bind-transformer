@@ -54,7 +54,7 @@ def fourier_encode(x, dims, theta = 20000):
     return emb
 
 def corr_coef_loss(pred, target):
-    return 1 - pearson_corr_coef(pred, target)
+    return 1 - pearson_corr_coef(pred, target).mean()
 
 # genetic sequence caching enformer forward decorator
 
@@ -296,6 +296,7 @@ class AdapterModel(nn.Module):
         condition_film = False,
         condition_hypergrid = True,
         use_corr_coef_loss = False,
+        head_num_tracks = 0,          # set > 0 for a head like mouse | human on enformer, projecting enformer feature dimension to number of tracks to be trained on, at the target length
         **kwargs
     ):
         super().__init__()
@@ -401,7 +402,7 @@ class AdapterModel(nn.Module):
             )
 
         else:
-            self.loss_fn = poisson_loss if not corr_coef_loss else corr_coef_loss
+            self.loss_fn = poisson_loss if not use_corr_coef_loss else corr_coef_loss
 
             self.to_pred = nn.Sequential(
                 nn.Linear(latent_heads, 1),
@@ -409,11 +410,39 @@ class AdapterModel(nn.Module):
                 nn.Softplus()
             )
 
+            self.to_tracks = None
+            self.head_num_tracks = head_num_tracks
+
+            if head_num_tracks > 0:
+                self.to_tracks = nn.Sequential(
+                    nn.Linear(enformer_dim, head_num_tracks),
+                    nn.Softplus()
+                )
+
     def combine_losses(self, loss, aux_loss):
         if not self.aux_read_value_loss:
             return loss
 
         return loss + self.read_value_aux_loss_weight * aux_loss
+
+    def forward_head_track(
+        self,
+        embed,
+        target = None,
+        return_corr_coef = False
+    ):
+        assert not self.binary_target, 'cannot finetune on tracks if binary_target training is turned on'
+
+        pred = self.to_tracks(embed)
+
+        if not exists(target):
+            return pred
+
+        if exists(target) and return_corr_coef:
+            return pearson_corr_coef(pred, target)
+
+        print(pred.shape, target.shape)
+        return self.loss_fn(pred, target)
 
     def forward(
         self,
@@ -430,7 +459,8 @@ class AdapterModel(nn.Module):
         return_corr_coef = False,
         finetune_enformer = False,
         finetune_enformer_ln_only = False,
-        unfreeze_enformer_last_n_layers = 0
+        unfreeze_enformer_last_n_layers = 0,
+        use_track_head = False
     ):
         device = seq.device
 
@@ -461,6 +491,17 @@ class AdapterModel(nn.Module):
 
         with enformer_context:
             seq_embed = enformer_forward(seq, return_only_embeddings = True)
+
+        # if training off an enformer head (tracks without targets, as in enformer human or mouse head) early return
+
+        if use_track_head:
+            return self.forward_head_track(
+                seq_embed,
+                target = target,
+                return_corr_coef = return_corr_coef
+            )
+
+        # norm sequence embedding
 
         seq_embed = self.norm_seq_embed(seq_embed)
 
@@ -533,9 +574,6 @@ class AdapterModel(nn.Module):
 
         if exists(target) and not self.binary_target:
             return self.loss_fn(pred, target)
-
-        if not exists(target):
-            return pred
 
         # binary loss w/ optional auxiliary loss
 
