@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from tf_bind_transformer.optimizer import get_optimizer
-from tf_bind_transformer.data_bigwig import BigWigDataset, BigWigTracksOnlyDataset, get_bigwig_dataloader
+from tf_bind_transformer.data_bigwig import BigWigDataset, BigWigTracksOnlyDataset, get_bigwig_dataloader, get_bigwig_tracks_dataloader
 from enformer_pytorch.modeling_enformer import poisson_loss, pearson_corr_coef
 
 def exists(val):
@@ -147,24 +147,44 @@ class BigWigTrainer(nn.Module):
             factor_species_priority = ['mouse', 'human', 'unknown']
         )
 
-        self.tracks_only_ds = BigWigTracksOnlyDataset(
+        self.human_head_ds = BigWigTracksOnlyDataset(
+            ref = 'hg38',
             bigwig_folder = bigwig_tracks_only_folder_path,
-            human_enformer_loci_path = human_loci_path,
-            mouse_enformer_loci_path = mouse_loci_path,
-            human_fasta_file = human_fasta_file,
-            mouse_fasta_file = mouse_fasta_file,
+            enformer_loci_path = human_loci_path,
+            fasta_file = human_fasta_file,
             annot_file = annot_file_path,
             downsample_factor = downsample_factor,
             target_length = target_length,
             filter_sequences_by = ('column_4', 'train')
         )
 
-        self.valid_tracks_only_ds = BigWigTracksOnlyDataset(
+        self.valid_human_head_ds = BigWigTracksOnlyDataset(
+            ref = 'hg38',
             bigwig_folder = bigwig_tracks_only_folder_path,
-            human_enformer_loci_path = human_loci_path,
-            mouse_enformer_loci_path = mouse_loci_path,
-            human_fasta_file = human_fasta_file,
-            mouse_fasta_file = mouse_fasta_file,
+            enformer_loci_path = human_loci_path,
+            fasta_file = human_fasta_file,
+            annot_file = annot_file_path,
+            downsample_factor = downsample_factor,
+            target_length = target_length,
+            filter_sequences_by = ('column_4', 'valid')
+        )
+
+        self.mouse_head_ds = BigWigTracksOnlyDataset(
+            ref = 'mm10',
+            bigwig_folder = bigwig_tracks_only_folder_path,
+            enformer_loci_path = mouse_loci_path,
+            fasta_file = mouse_fasta_file,
+            annot_file = annot_file_path,
+            downsample_factor = downsample_factor,
+            target_length = target_length,
+            filter_sequences_by = ('column_4', 'train')
+        )
+
+        self.valid_mouse_head_ds = BigWigTracksOnlyDataset(
+            ref = 'mm10',
+            bigwig_folder = bigwig_tracks_only_folder_path,
+            enformer_loci_path = mouse_loci_path,
+            fasta_file = mouse_fasta_file,
             annot_file = annot_file_path,
             downsample_factor = downsample_factor,
             target_length = target_length,
@@ -175,31 +195,40 @@ class BigWigTrainer(nn.Module):
         len_train_mouse = len(self.mouse_ds)
         len_valid_human = len(self.valid_human_ds)
         len_valid_mouse = len(self.valid_mouse_ds)
-        len_tracks = len(self.tracks_only_ds)
-        len_valid_tracks = len(self.valid_tracks_only_ds)
 
-        self.has_train = len_train_human > 0 or len_train_mouse > 0 or len_tracks > 0
-        self.has_valid = len_valid_human > 0 or len_valid_mouse > 0 or len_valid_tracks > 0
+        len_train_human_head = len(self.human_head_ds)
+        len_valid_human_head = len(self.valid_human_head_ds)
+        len_train_mouse_head = len(self.mouse_head_ds)
+        len_valid_mouse_head = len(self.valid_mouse_head_ds)
+
+        self.has_train = len_train_human > 0 or len_train_mouse > 0 or len_train_human_head > 0 or len_train_mouse_head > 0
+        self.has_valid = len_valid_human > 0 or len_valid_mouse > 0 or len_valid_human_head > 0 or len_valid_mouse_head > 0
 
         if self.has_train:
-            print(f'training with {self.human_ds.ntargets} human targets and {self.mouse_ds.ntargets} mice targets and {self.tracks_only_ds.ntargets} independent tracks')
+            print(f'training with {self.human_ds.ntargets} human targets and {self.mouse_ds.ntargets} mice targets')
+            print(f'training independent tracks with {self.human_head_ds.ntargets} human targets and {self.mouse_head_ds.ntargets} mouse targets')
 
         if self.has_valid:
-            print(f'validating with {self.valid_human_ds.ntargets} human targets and {self.valid_mouse_ds.ntargets} mice targets and {self.valid_tracks_only_ds.ntargets} indepedent tracks')
+            print(f'validating with {self.valid_human_ds.ntargets} human targets and {self.valid_mouse_ds.ntargets} mice targets')
+            print(f'validating independent tracks with {self.valid_human_head_ds.ntargets} human targets and {self.valid_mouse_head_ds.ntargets} mouse targets')
 
         assert self.has_train and self.has_valid, 'must have training and validation samples in order to proceed'
-
-        if len_tracks > 0:
-            assert self.tracks_only_ds.ntargets == model.head_num_tracks, f'number of tracks on adapter ({model.head_num_tracks}) does not equal the number of targets found in folder {len_tracks.ntargets}'
-
-        if len_valid_tracks > 0:
-            assert self.valid_tracks_only_ds.ntargets == model.head_num_tracks, f'number of tracks on adapter ({model.head_num_tracks}) does not equal the number of targets found in folder {len_valid_tracks.ntargets}'
 
         self.train_human_dl = get_bigwig_dataloader(self.human_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_train_human > 0 else None
         self.train_mouse_dl = get_bigwig_dataloader(self.mouse_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_train_mouse > 0 else None
 
         self.valid_human_dl = get_bigwig_dataloader(self.valid_human_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_valid_human > 0 else None
         self.valid_mouse_dl = get_bigwig_dataloader(self.valid_mouse_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_valid_mouse > 0 else None
+
+        # dataloader for independent tracks without
+
+        self.train_human_head_dl = get_bigwig_tracks_dataloader(self.human_head_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_train_human_head > 0 else None
+        self.train_mouse_head_dl = get_bigwig_tracks_dataloader(self.mouse_head_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_train_mouse_head > 0 else None
+
+        self.valid_human_head_dl = get_bigwig_tracks_dataloader(self.valid_human_head_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_valid_human_head > 0 else None
+        self.valid_mouse_head_dl = get_bigwig_tracks_dataloader(self.valid_mouse_head_ds, cycle_iter = True, shuffle = shuffle, batch_size = batch_size) if len_valid_mouse_head > 0 else None
+
+        # optimizer
 
         self.optim = get_optimizer(model.parameters(), lr = lr, wd = wd)
 
@@ -221,7 +250,7 @@ class BigWigTrainer(nn.Module):
         self.model.train()
 
         log = {}
-        loss_divisor = 2 if exists(self.train_human_dl) and exists(self.train_mouse_dl) else 1
+        loss_divisor = int(exists(self.train_human_dl)) + int(exists(self.train_mouse_dl)) + int(exists(self.train_human_head_dl)) + int(exists(self.train_mouse_head_dl))
 
         if exists(self.train_human_dl):
             for _ in range(grad_accum_every):
@@ -260,6 +289,42 @@ class BigWigTrainer(nn.Module):
                 (loss / self.grad_accum_every / loss_divisor).backward()
 
             print(f'{curr_step} mouse loss: {log["mouse_loss"]}')
+
+        if exists(self.train_human_head_dl):
+            for _ in range(grad_accum_every):
+                seq, target = next(self.train_human_head_dl)
+                seq, target = seq.cuda(), target.cuda()
+
+                loss = self.model(
+                    seq,
+                    target = target,
+                    head = 'human',
+                    finetune_enformer_ln_only = finetune_enformer_ln_only,
+                    **kwargs
+                )
+
+                log = accum_log(log, {'human_head_loss': loss.item() / grad_accum_every})
+                (loss / self.grad_accum_every / loss_divisor).backward()
+
+            print(f'{curr_step} human head loss: {log["human_head_loss"]}')
+
+        if exists(self.train_mouse_head_dl):
+            for _ in range(grad_accum_every):
+                seq, target = next(self.train_mouse_house_dl)
+                seq, target = seq.cuda(), target.cuda()
+
+                loss = self.model(
+                    seq,
+                    target = target,
+                    head = 'mouse',
+                    finetune_enformer_ln_only = finetune_enformer_ln_only,
+                    **kwargs
+                )
+
+                log = accum_log(log, {'mouse_head_loss': loss.item() / grad_accum_every})
+                (loss / self.grad_accum_every / loss_divisor).backward()
+
+            print(f'{curr_step} mouse head loss: {log["mouse_head_loss"]}')
 
         # gradient clipping
 
@@ -320,8 +385,40 @@ class BigWigTrainer(nn.Module):
                 print(f'{curr_step} mouse valid loss: {log["mouse_valid_loss"]}')
                 print(f'{curr_step} mouse valid pearson R: {log["mouse_valid_corr_coef"]}')
 
-            if curr_step > 0:
-                torch.save(self.model.state_dict(), self.checkpoint_filename)
+            if exists(self.valid_human_head_dl):
+                for _ in range(grad_accum_every):
+                    seq, target = next(self.valid_human_head_dl)
+                    seq, target = seq.cuda(), target.cuda()
+
+                    pred = self.model(seq, head = 'human')
+
+                    valid_loss = self.model.loss_fn(pred, target)
+                    valid_corr_coef = pearson_corr_coef(pred, target)
+
+                    log = accum_log(log, {
+                        'human_head_valid_loss': valid_loss.item() / grad_accum_every,
+                        'human_head_valid_corr_coef': valid_corr_coef.item() / grad_accum_every
+                    })
+
+                print(f'{curr_step} human head valid loss: {log["human_head_valid_loss"]}')
+
+            if exists(self.valid_mouse_head_dl):
+                for _ in range(grad_accum_every):
+                    seq, target = next(self.valid_mouse_house_dl)
+                    seq, target = seq.cuda(), target.cuda()
+
+                    pred = self.model(seq, head = 'mouse')
+
+                    log = accum_log(log, {
+                        'mouse_head_valid_loss': valid_loss.item() / grad_accum_every,
+                        'mouse_head_valid_corr_coef': valid_corr_coef.item() / grad_accum_every
+                    })
+
+
+                print(f'{curr_step} mouse head valid loss: {log["mouse_head_valid_loss"]}')
+
+                if curr_step > 0:
+                    torch.save(self.model.state_dict(), self.checkpoint_filename)
 
         self.steps += 1
         return log

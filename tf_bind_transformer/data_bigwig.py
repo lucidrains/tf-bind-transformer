@@ -209,10 +209,9 @@ class BigWigTracksOnlyDataset(Dataset):
         self,
         *,
         bigwig_folder,
-        human_enformer_loci_path,
-        mouse_enformer_loci_path,
-        human_fasta_file,
-        mouse_fasta_file,
+        enformer_loci_path,
+        fasta_file,
+        ref,
         annot_file = None,
         filter_chromosome_ids = None,
         downsample_factor = 128,
@@ -235,12 +234,11 @@ class BigWigTracksOnlyDataset(Dataset):
         bw_experiments = [p.stem for p in bigwig_folder.glob('*.bw')]
         assert len(bw_experiments) > 0, 'no bigwig files found in bigwig folder'
 
-        human_loci = read_bed(human_enformer_loci_path)
-        mouse_loci = read_bed(mouse_enformer_loci_path)
+        loci = read_bed(enformer_loci_path)
 
         annot_df = pl.read_csv(annot_file, sep = "\t", has_headers = False, columns = list(map(lambda i: f'column_{i + 1}', range(17))))
 
-        annot_df = annot_df.filter(pl_isin('column_2', ['hg38', 'mm10']))
+        annot_df = annot_df.filter(pl.col('column_2') == ref)
         annot_df = filter_by_col_isin(annot_df, 'column_1', bw_experiments)
 
         dataset_chr_ids = CHR_IDS
@@ -251,22 +249,15 @@ class BigWigTracksOnlyDataset(Dataset):
         # filtering loci by chromosomes
         # as well as training or validation
 
-        def filter_loci(loci):
-            loci = loci.filter(pl_isin('column_1', get_chr_names(dataset_chr_ids)))
+        loci = loci.filter(pl_isin('column_1', get_chr_names(dataset_chr_ids)))
 
-            if exists(filter_sequences_by):
-                col_name, col_val = filter_sequences_by
-                loci = loci.filter(pl.col(col_name) == col_val)
-            return loci
+        if exists(filter_sequences_by):
+            col_name, col_val = filter_sequences_by
+            loci = loci.filter(pl.col(col_name) == col_val)
 
-        human_loci, mouse_loci = map(filter_loci, (human_loci, mouse_loci))
+        self.fasta = FastaInterval(fasta_file = fasta_file, **kwargs)
 
-        self.human_fasta = FastaInterval(fasta_file = human_fasta_file, **kwargs)
-        self.mouse_fasta = FastaInterval(fasta_file = mouse_fasta_file, **kwargs)
-
-        self.human_df = human_loci
-        self.mouse_df = mouse_loci
-
+        self.df = loci
         self.annot = annot_df
         self.ntargets = self.annot.shape[0]
 
@@ -283,28 +274,12 @@ class BigWigTracksOnlyDataset(Dataset):
     def __len__(self):
         if self.invalid:
             return 0
-
-        return len(self.human_df) * self.ntargets
+        print(len(self.df))
+        print(int(self.ntargets > 0))
+        return len(self.df) * int(self.ntargets > 0)
 
     def __getitem__(self, ind):
-        # TODO return all targets from an individual enformer loci
-        chr_name, begin, end, _ = self.df.row(ind % self.df.shape[0])
-
-        species = self.annot.select('column_2').to_series(0)
-
-        ix_target = ind // self.df.shape[0]
-    
-        #experiment, target, cell_type = parse_exp_target_cell(experiment_target_cell_type)
-
-        specie = species[ix_target]
-        exp_bw = self.bigwigs[ix_target]
-
-        if specie == 'hg38':
-            fasta = self.human_fasta 
-        elif specie == 'mm10':
-            fastas = self.mouse_fasta
-        else:
-            raise ValueError(f'unknown species {specie}')
+        chr_name, begin, end, _ = self.df.row(ind)
 
         # figure out ref and fetch appropriate sequence
 
@@ -313,9 +288,9 @@ class BigWigTracksOnlyDataset(Dataset):
         # calculate bigwig
         # properly downsample and then crop
 
-        all_bw_values = [np.array(exp_bw.values(chr_name, begin, end))]
+        all_bw_values = [np.array(bw.values(chr_name, begin, end)) for bw in self.bigwigs]
 
-        outputs = np.stack(all_bw_values, axis = -1)
+        output = np.stack(all_bw_values, axis = -1)
         output = output.reshape((-1, self.downsample_factor, self.ntargets))
 
         if self.bigwig_reduction_type == 'mean':
@@ -350,5 +325,14 @@ def get_bigwig_dataloader(ds, cycle_iter = False, **kwargs):
     drop_last = dataset_len > batch_size
 
     dl = DataLoader(ds, collate_fn = bigwig_collate_fn, drop_last = drop_last, **kwargs)
+    wrapper = cycle if cycle_iter else iter
+    return wrapper(dl)
+
+def get_bigwig_tracks_dataloader(ds, cycle_iter = False, **kwargs):
+    dataset_len = len(ds)
+    batch_size = kwargs.get('batch_size')
+    drop_last = dataset_len > batch_size
+
+    dl = DataLoader(ds, drop_last = drop_last, **kwargs)
     wrapper = cycle if cycle_iter else iter
     return wrapper(dl)

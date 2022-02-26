@@ -24,6 +24,7 @@ MOUSE_FASTA_FILE_PATH = './mm10.ml.fa'
 HUMAN_LOCI_PATH = './chip_atlas/human_sequences.bed'
 MOUSE_LOCI_PATH = './chip_atlas/mouse_sequences.bed'
 BIGWIG_PATH = './chip_atlas/bigwig'
+BIGWIG_TRACKS_ONLY_PATH = './chip_atlas/bigwig_tracks_only'
 ANNOT_FILE_PATH =  './chip_atlas/annot.tab'
 
 TARGET_LENGTH = 896
@@ -55,6 +56,7 @@ trainer = BigWigTrainer(
     human_fasta_file = HUMAN_FASTA_FILE_PATH,
     mouse_fasta_file = MOUSE_FASTA_FILE_PATH,
     bigwig_folder_path = BIGWIG_PATH,
+    bigwig_tracks_only_folder_path = BIGWIG_TRACKS_ONLY_PATH,
     annot_file_path = ANNOT_FILE_PATH,
     target_length = TARGET_LENGTH,
     lr = LEARNING_RATE,
