@@ -105,8 +105,14 @@ class BigWigDataset(Dataset):
 
         self.factor_ds = FactorProteinDataset(factor_fasta_folder, species_priority = factor_species_priority)
 
+        exp_ids = set(annot_df.get_column('column_1').to_list())
+
         annot_df = chip_atlas_add_experiment_target_cell(annot_df)
         annot_df = filter_df_by_tfactor_fastas(annot_df, factor_fasta_folder)
+
+        filtered_exp_ids = set(annot_df.get_column('column_1').to_list())
+
+        print('experiments filtered out by lack of transcription factor fastas', exp_ids - filtered_exp_ids)
 
         # filter dataset by inclusion and exclusion list of targets
         # (<all available targets> intersect <include targets>) subtract <exclude targets>
@@ -274,8 +280,7 @@ class BigWigTracksOnlyDataset(Dataset):
     def __len__(self):
         if self.invalid:
             return 0
-        print(len(self.df))
-        print(int(self.ntargets > 0))
+
         return len(self.df) * int(self.ntargets > 0)
 
     def __getitem__(self, ind):
