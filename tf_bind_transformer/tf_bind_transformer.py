@@ -12,7 +12,7 @@ from contextlib import contextmanager
 
 from enformer_pytorch import Enformer
 from enformer_pytorch.modeling_enformer import poisson_loss, pearson_corr_coef
-from enformer_pytorch.finetune import freeze_batchnorms_, freeze_all_but_layernorms_, unfreeze_last_n_layers_
+from enformer_pytorch.finetune import freeze_batchnorms_, freeze_all_but_layernorms_, unfreeze_last_n_layers_, unfreeze_all_layers_
 
 from logavgexp_pytorch import logavgexp
 
@@ -296,13 +296,16 @@ class AdapterModel(nn.Module):
         condition_film = False,
         condition_hypergrid = True,
         use_corr_coef_loss = False,
-        head_num_tracks = 0,          # set > 0 for a head like mouse | human on enformer, projecting enformer feature dimension to number of tracks to be trained on, at the target length
+        finetune_output_heads = None,
         **kwargs
     ):
         super().__init__()
         assert isinstance(enformer, Enformer), 'enformer must be an instance of Enformer'
         self.enformer = enformer
         enformer_dim = enformer.dim * 2
+
+        if exists(finetune_output_heads):
+            self.enformer.add_heads(**finetune_output_heads)
 
         self.norm_seq_embed = nn.LayerNorm(enformer_dim)
 
@@ -410,38 +413,36 @@ class AdapterModel(nn.Module):
                 nn.Softplus()
             )
 
-            self.to_tracks = None
-            self.head_num_tracks = head_num_tracks
-
-            if head_num_tracks > 0:
-                self.to_tracks = nn.Sequential(
-                    nn.Linear(enformer_dim, head_num_tracks),
-                    nn.Softplus()
-                )
-
     def combine_losses(self, loss, aux_loss):
         if not self.aux_read_value_loss:
             return loss
 
         return loss + self.read_value_aux_loss_weight * aux_loss
 
-    def forward_head_track(
+    def forward_enformer_head(
         self,
-        embed,
+        seq_embed,
+        *,
+        head,
         target = None,
         return_corr_coef = False
     ):
         assert not self.binary_target, 'cannot finetune on tracks if binary_target training is turned on'
 
-        pred = self.to_tracks(embed)
+        unfreeze_all_layers_(self.enformer._heads)
+
+        assert head in self.enformer._heads, f'{head} head not found in enformer'
+
+        pred = self.enformer._heads[head](seq_embed)
 
         if not exists(target):
             return pred
 
+        assert pred.shape[-1] == target.shape[-1], f'{head} head on enformer produced {pred.shape[-1]} tracks, but the supplied target only has {target.shape[-1]}'
+
         if exists(target) and return_corr_coef:
             return pearson_corr_coef(pred, target)
 
-        print(pred.shape, target.shape)
         return self.loss_fn(pred, target)
 
     def forward(
@@ -460,7 +461,7 @@ class AdapterModel(nn.Module):
         finetune_enformer = False,
         finetune_enformer_ln_only = False,
         unfreeze_enformer_last_n_layers = 0,
-        use_track_head = False
+        head = None
     ):
         device = seq.device
 
@@ -492,14 +493,10 @@ class AdapterModel(nn.Module):
         with enformer_context:
             seq_embed = enformer_forward(seq, return_only_embeddings = True)
 
-        # if training off an enformer head (tracks without targets, as in enformer human or mouse head) early return
+        # if training off an enformer head
 
-        if use_track_head:
-            return self.forward_head_track(
-                seq_embed,
-                target = target,
-                return_corr_coef = return_corr_coef
-            )
+        if exists(head):
+            return self.forward_enformer_head(seq_embed, head = head, target = target)
 
         # norm sequence embedding
 

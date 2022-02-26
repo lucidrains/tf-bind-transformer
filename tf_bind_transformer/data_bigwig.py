@@ -69,6 +69,11 @@ class BigWigDataset(Dataset):
         super().__init__()
         assert exists(annot_file) 
 
+        if not exists(bigwig_folder):
+            self.invalid = True
+            self.ntargets = 0
+            return
+
         bigwig_folder = Path(bigwig_folder)
         assert bigwig_folder.exists(), 'bigwig folder does not exist'
 
@@ -79,8 +84,6 @@ class BigWigDataset(Dataset):
         annot_df = pl.read_csv(annot_file, sep = "\t", has_headers = False, columns = list(map(lambda i: f'column_{i + 1}', range(17))))
 
         annot_df = annot_df.filter(pl_isin('column_2', only_ref))
-
-        # :TODO find out why this step is taking forever
         annot_df = filter_by_col_isin(annot_df, 'column_1', bw_experiments)
 
         if df_frac < 1:
@@ -140,13 +143,17 @@ class BigWigDataset(Dataset):
         # bigwigs
 
         self.bigwigs = [pyBigWig.open(str(bigwig_folder / f'{str(i)}.bw')) for i in self.annot.get_column("column_1")]
-        
+
         self.downsample_factor = downsample_factor
         self.target_length = target_length
 
         self.bigwig_reduction_type = bigwig_reduction_type
+        self.invalid = False
 
     def __len__(self):
+        if self.invalid:
+            return 0
+
         return len(self.df) * self.ntargets
 
     def __getitem__(self, ind):
@@ -195,6 +202,117 @@ class BigWigDataset(Dataset):
         label = torch.Tensor(om)
         return seq, aa_seq, context_str, label
 
+# BigWig dataset for tracks only
+
+class BigWigTracksOnlyDataset(Dataset):
+    def __init__(
+        self,
+        *,
+        bigwig_folder,
+        enformer_loci_path,
+        fasta_file,
+        ref,
+        annot_file = None,
+        filter_chromosome_ids = None,
+        downsample_factor = 128,
+        target_length = 896,
+        bigwig_reduction_type = 'sum',
+        filter_sequences_by = None,
+        **kwargs
+    ):
+        super().__init__()
+        assert exists(annot_file)
+
+        if not exists(bigwig_folder):
+            self.invalid = True
+            self.ntargets = 0
+            return
+
+        bigwig_folder = Path(bigwig_folder)
+        assert bigwig_folder.exists(), 'bigwig folder does not exist'
+
+        bw_experiments = [p.stem for p in bigwig_folder.glob('*.bw')]
+        assert len(bw_experiments) > 0, 'no bigwig files found in bigwig folder'
+
+        loci = read_bed(enformer_loci_path)
+
+        annot_df = pl.read_csv(annot_file, sep = "\t", has_headers = False, columns = list(map(lambda i: f'column_{i + 1}', range(17))))
+
+        annot_df = annot_df.filter(pl.col('column_2') == ref)
+        annot_df = filter_by_col_isin(annot_df, 'column_1', bw_experiments)
+
+        dataset_chr_ids = CHR_IDS
+
+        if exists(filter_chromosome_ids):
+            dataset_chr_ids = dataset_chr_ids.intersection(set(filter_chromosome_ids))
+
+        # filtering loci by chromosomes
+        # as well as training or validation
+
+        loci = loci.filter(pl_isin('column_1', get_chr_names(dataset_chr_ids)))
+
+        if exists(filter_sequences_by):
+            col_name, col_val = filter_sequences_by
+            loci = loci.filter(pl.col(col_name) == col_val)
+
+        self.fasta = FastaInterval(fasta_file = fasta_file, **kwargs)
+
+        self.df = loci
+        self.annot = annot_df
+        self.ntargets = self.annot.shape[0]
+
+        # bigwigs
+
+        self.bigwigs = [pyBigWig.open(str(bigwig_folder / f'{str(i)}.bw')) for i in self.annot.get_column("column_1")]
+        
+        self.downsample_factor = downsample_factor
+        self.target_length = target_length
+
+        self.bigwig_reduction_type = bigwig_reduction_type
+        self.invalid = False
+
+    def __len__(self):
+        if self.invalid:
+            return 0
+        print(len(self.df))
+        print(int(self.ntargets > 0))
+        return len(self.df) * int(self.ntargets > 0)
+
+    def __getitem__(self, ind):
+        chr_name, begin, end, _ = self.df.row(ind)
+
+        # figure out ref and fetch appropriate sequence
+
+        seq = self.fasta(chr_name, begin, end)
+
+        # calculate bigwig
+        # properly downsample and then crop
+
+        all_bw_values = [np.array(bw.values(chr_name, begin, end)) for bw in self.bigwigs]
+
+        output = np.stack(all_bw_values, axis = -1)
+        output = output.reshape((-1, self.downsample_factor, self.ntargets))
+
+        if self.bigwig_reduction_type == 'mean':
+            om = np.nanmean(output, axis = 1)
+        elif self.bigwig_reduction_type == 'sum':
+            om = np.nansum(output, axis = 1)
+        else:
+            raise ValueError(f'unknown reduction type {self.bigwig_reduction_type}')
+
+        output_length = output.shape[0]
+
+        if output_length < self.target_length:
+            assert f'target length {self.target_length} cannot be less than the {output_length}'
+
+        trim = (output.shape[0] - self.target_length) // 2
+        om = om[trim:-trim]
+
+        np.nan_to_num(om, copy = False)
+
+        label = torch.Tensor(om)
+        return seq, label
+
 # data loader
 
 def bigwig_collate_fn(data):
@@ -207,5 +325,14 @@ def get_bigwig_dataloader(ds, cycle_iter = False, **kwargs):
     drop_last = dataset_len > batch_size
 
     dl = DataLoader(ds, collate_fn = bigwig_collate_fn, drop_last = drop_last, **kwargs)
+    wrapper = cycle if cycle_iter else iter
+    return wrapper(dl)
+
+def get_bigwig_tracks_dataloader(ds, cycle_iter = False, **kwargs):
+    dataset_len = len(ds)
+    batch_size = kwargs.get('batch_size')
+    drop_last = dataset_len > batch_size
+
+    dl = DataLoader(ds, drop_last = drop_last, **kwargs)
     wrapper = cycle if cycle_iter else iter
     return wrapper(dl)
