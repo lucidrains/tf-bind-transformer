@@ -21,7 +21,7 @@ setup(
     'biopython',
     'click',
     'einops>=0.3',
-    'enformer-pytorch>=0.4.3',
+    'enformer-pytorch>=0.4.4',
     'fair-esm',
     'logavgexp-pytorch',
     'polars',
