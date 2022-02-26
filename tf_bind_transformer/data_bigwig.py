@@ -113,7 +113,7 @@ class BigWigDataset(Dataset):
         filtered_exp_ids = set(annot_df.get_column('column_1').to_list())
 
         filtered_out_exp_ids = exp_ids - filtered_exp_ids
-        print(f'{', '.join(only_ref)} - {len(filtered_out_exp_ids)} experiments filtered out by lack of transcription factor fastas', filtered_out_exp_ids)
+        print(f'{", ".join(only_ref)} - {len(filtered_out_exp_ids)} experiments filtered out by lack of transcription factor fastas', filtered_out_exp_ids)
 
         # filter dataset by inclusion and exclusion list of targets
         # (<all available targets> intersect <include targets>) subtract <exclude targets>
@@ -294,7 +294,14 @@ class BigWigTracksOnlyDataset(Dataset):
         # calculate bigwig
         # properly downsample and then crop
 
-        all_bw_values = [np.array(bw.values(chr_name, begin, end)) for bw in self.bigwigs]
+        all_bw_values = []
+
+        for bw in self.bigwigs:
+            try:
+                bw_values = bw.values(chr_name, begin, end)
+                all_bw_values.append(bw_values)
+            except:
+                print(f'hitting invalid range for {bw} - ({chr_name}, {begin}, {end})')
 
         output = np.stack(all_bw_values, axis = -1)
         output = output.reshape((-1, self.downsample_factor, self.ntargets))
