@@ -393,7 +393,7 @@ class BigWigTrainer(nn.Module):
                     pred = self.model(seq, head = 'human')
 
                     valid_loss = self.model.loss_fn(pred, target)
-                    valid_corr_coef = pearson_corr_coef(pred, target)
+                    valid_corr_coef = pearson_corr_coef(pred, target).mean()
 
                     log = accum_log(log, {
                         'human_head_valid_loss': valid_loss.item() / grad_accum_every,
@@ -408,6 +408,9 @@ class BigWigTrainer(nn.Module):
                     seq, target = seq.cuda(), target.cuda()
 
                     pred = self.model(seq, head = 'mouse')
+
+                    valid_loss = self.model.loss_fn(pred, target)
+                    valid_corr_coef = pearson_corr_coef(pred, target).mean()
 
                     log = accum_log(log, {
                         'mouse_head_valid_loss': valid_loss.item() / grad_accum_every,
