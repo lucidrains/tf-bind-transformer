@@ -42,8 +42,11 @@ model = AdapterModel(
     use_aa_embeds = True,
     use_free_text_context = True,
     free_text_embed_method = 'mean_pool',
-    aa_embed_encoder = 'protalbert',
-    use_corr_coef_loss = True               # use 1 - pearson_corr_coef loss
+    aa_embed_encoder = 'esm',
+    finetune_output_heads = dict(
+        human = 12,
+        mouse = 24
+    )
 ).cuda()
 
 
