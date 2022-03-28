@@ -401,6 +401,7 @@ class BigWigTrainer(nn.Module):
                     })
 
                 print(f'{curr_step} human head valid loss: {log["human_head_valid_loss"]}')
+                print(f'{curr_step} human head valid pearson R: {log["human_head_valid_corr_coef"]}')
 
             if exists(self.valid_mouse_head_dl):
                 for _ in range(grad_accum_every):
@@ -419,6 +420,7 @@ class BigWigTrainer(nn.Module):
 
 
                 print(f'{curr_step} mouse head valid loss: {log["mouse_head_valid_loss"]}')
+                print(f'{curr_step} mouse head valid pearson R: {log["mouse_head_valid_corr_coef"]}')
 
                 if curr_step > 0:
                     torch.save(self.model.state_dict(), self.checkpoint_filename)
