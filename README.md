@@ -1,6 +1,6 @@
 ## Transcription Factor binding predictions with Attention and Transformers
 
-A repository with exploration into using transformers to predict DNA ↔ transcription factor binding. If you are a researcher interested in this problem, please join the <a href="https://discord.gg/s7WyNU24aM">discord server</a> for discussions.
+A repository with exploration into using transformers to predict DNA ↔ transcription factor binding.
 
 ## Install
 
@@ -10,7 +10,7 @@ Run the following at the project root to download dependencies
 $ python setup.py install --user
 ```
 
-Then you must install `pybedtools`  as well as 'pyBigWig'
+Then you must install `pybedtools`  as well as `pyBigWig`
 
 ```bash
 $ conda install --channel conda-forge --channel bioconda pybedtools pyBigWig

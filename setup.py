@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
   name = 'tf-bind-transformer',
   packages = find_packages(exclude=[]),
-  version = '0.0.116',
+  version = '0.0.117',
   license='MIT',
   description = 'Transformer for Transcription Factor Binding',
   author = 'Phil Wang',
@@ -18,6 +18,7 @@ setup(
     'gene expression'
   ],
   install_requires=[
+    'bidirectional-cross-attention',
     'biopython',
     'click',
     'einops>=0.3',
