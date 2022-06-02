@@ -33,7 +33,7 @@ HELD_OUT_TARGET = ['GATA2']
 
 # instantiate enformer or load pretrained
 
-enformer = Enformer.from_pretrained('EleutherAI/enformer-preview', target_length = TARGET_LENGTH)
+enformer = Enformer.from_pretrained('EleutherAI/enformer-official-rough', target_length = TARGET_LENGTH)
 
 # instantiate model wrapper that takes in enformer
 

@@ -3,12 +3,13 @@ from setuptools import setup, find_packages
 setup(
   name = 'tf-bind-transformer',
   packages = find_packages(exclude=[]),
-  version = '0.0.117',
+  version = '0.0.118',
   license='MIT',
   description = 'Transformer for Transcription Factor Binding',
   author = 'Phil Wang',
   author_email = 'lucidrains@gmail.com',
   url = 'https://github.com/lucidrains/tf-bind-transformer',
+  long_description_content_type = 'text/markdown',
   keywords = [
     'artificial intelligence',
     'deep learning',
@@ -22,7 +23,7 @@ setup(
     'biopython',
     'click',
     'einops>=0.3',
-    'enformer-pytorch>=0.4.4',
+    'enformer-pytorch>=0.5',
     'fair-esm',
     'logavgexp-pytorch',
     'polars',
